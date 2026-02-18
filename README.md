@@ -1,13 +1,10 @@
-# formal-hdl
+# Formal Hardware Description Language (HDL)
 
-## GitHub configuration
-
-To set up your new GitHub repository, follow these steps:
-
-* Under your repository name, click **Settings**.
-* In the **Actions** section of the sidebar, click "General".
-* Check the box **Allow GitHub Actions to create and approve pull requests**.
-* Click the **Pages** section of the settings sidebar.
-* In the **Source** dropdown menu, select "GitHub Actions".
-
-After following the steps above, you can remove this section from the README file.
+This project implements an emedded domain specific language (DSL) with [Lean4](https://lean-lang.org) for
+interactive formal verification of digital systems. The DSL provides representation
+of combinational and sequential (state-based) logic and enables functional equivalence
+checking between gate-level implementations and high-level specification. Verification
+of system properties, such as overflow or state reachability, is also supported. A
+gallery of examples including verification of an adder and counter is included to
+showcase the DSL's functionality. A stretch goal of the project is the development
+of a parser to enable direct import of post-synthesis netlists for automated verification.
