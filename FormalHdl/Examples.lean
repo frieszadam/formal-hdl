@@ -90,7 +90,20 @@ instance counter_proof : OneBitCounter my_counter en_idx out_idx where
   out_is_output := by rfl
   starts_low := by rfl
   toggle_on_high := by
-    sorry
+    intro curr_state env h_en
+    simp
+    unfold step
+    simp [out_idx, my_counter, ex_gates]
+    unfold evalCombinatorial
+    simp [mkWiring, ex_connections]
+    unfold evalCombinatorial
+    simp [mkWiring]
+    unfold evalCombinatorial
+    simp [mkWiring, ex_connections, my_counter, ex_gates]
+    simp [en_idx] at h_en
+    rw [h_en]
+    simp
+
   hold_on_low := by
     sorry
 
