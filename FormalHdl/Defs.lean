@@ -17,104 +17,73 @@ namespace hdl
 open hdl
 
 set_option linter.style.emptyLine false
+set_option linter.style.longLine false
 
--- all gates have 1 output and a parameterized number of inputs
+-- 1. The Single Source of Truth for Logic
+inductive GateKind
+  | igate  -- Input port (0 inputs)
+  | dff    -- Register (1 input)
+  | not_   -- Inverter (1 input)
+  | and_   -- AND gate (2 inputs)
+  | or_    -- OR gate (2 inputs)
+  | xor_   -- XOR gate (2 inputs)
+
+-- 2. Intrinsic Arity (Replaces `ni` in the Gate structure)
+def GateKind.ni : GateKind → Nat
+  | .igate => 0
+  | .dff   => 1
+  | .not_  => 1
+  | .and_  => 2
+  | .or_   => 2
+  | .xor_  => 2
+
+-- 3. Intrinsic Sequentiality (Replaces `is_seq` in the Gate structure)
+def GateKind.is_seq : GateKind → Bool
+  | .igate => true  -- Inputs hold state between clock edges
+  | .dff   => true  -- Registers hold state
+  | _      => false -- Combinatorial logic is transient
+
+-- 4. The Minimalist Gate Structure
 structure Gate where
-  ni : Nat
-  f : Vector Bool ni → Bool
-  is_seq : Bool
-  init_val : Bool -- ignored when is_seq is False
-  is_output : Bool
+  kind : GateKind
+  init_val : Bool   -- Ignored for combinatorial gates
+  is_output : Bool  -- Probe flag for gatherOutputs
 
-def not (is_output : Bool) : Gate := {
-  ni := 1,
-  f i := !i[0],
-  is_seq := False,
-  init_val := False,
-  is_output := is_output
-}
+-- 5. Helper Functions for instantiation (to keep your user API clean)
+def igate (start_val : Bool) : Gate :=
+  { kind := .igate, init_val := start_val, is_output := false }
 
-def or (is_output : Bool) : Gate := {
-  ni := 2,
-  f i := i[0] || i[1],
-  is_seq := False,
-  init_val := False,
-  is_output := is_output
-}
+def dff (reset_val is_output : Bool) : Gate :=
+  { kind := .dff, init_val := reset_val, is_output := is_output }
 
-def and (is_output : Bool) : Gate := {
-  ni := 2,
-  f i := i[0] && i[1],
-  is_seq := False,
-  init_val := False,
-  is_output := is_output
-}
+def and (is_output : Bool) : Gate :=
+  { kind := .and_, init_val := false, is_output := is_output }
 
-def xor (is_output : Bool) : Gate := {
-  ni := 2,
-  f i := i[0] ^^ i[1],
-  is_seq := False,
-  init_val := False,
-  is_output := is_output
-}
+def or (is_output : Bool) : Gate :=
+  { kind := .or_, init_val := false, is_output := is_output }
 
-def nor (is_output : Bool) : Gate := {
-  ni := 2,
-  f i := !(i[0] || i[1]),
-  is_seq := False,
-  init_val := False,
-  is_output := is_output
-}
+def xor (is_output : Bool) : Gate :=
+  { kind := .xor_, init_val := false, is_output := is_output }
 
-def nand (is_output : Bool) : Gate := {
-  ni := 2,
-  f i := !(i[0] && i[1]),
-  is_seq := False,
-  init_val := False,
-  is_output := is_output
-}
-
-def xnor (is_output : Bool) : Gate := {
-  ni := 2,
-  f i := !(i[0] ^^ i[1]),
-  is_seq := False,
-  init_val := False,
-  is_output := is_output
-}
-
--- DFFs are a circuit primitive evaluated as sequential logic
-def dff (reset_val is_output : Bool) : Gate := {
-  ni := 1,
-  f i := i[0],
-  is_seq := True,
-  init_val := reset_val,
-  is_output := is_output
-}
-
-def igate (start_val : Bool) : Gate := {
-  ni := 0,
-  f _ := False,
-  is_seq := True,
-  init_val := start_val,
-  is_output := False
-}
+def not (is_output : Bool) : Gate :=
+  { kind := .not_, init_val := false, is_output := is_output }
 
 structure Circuit where
   gates : List Gate
 
-  -- (Gate Index, Input Pin) -> Source Gate Index
-  wiring : (i : Fin gates.length) → Fin (gates.get i).ni → Fin gates.length
+  -- The wiring depends on the intrinsic arity of the gate's kind!
+  wiring : (i : Fin gates.length) → Fin (gates.get i).kind.ni → Fin gates.length
 
-  -- Ensure combinatorial paths are acyclic
-  is_dag : ∀ (i : Fin gates.length) (p : Fin (gates.get i).ni),
+  -- The DAG proof uses the intrinsic sequentiality
+  is_dag : ∀ (i : Fin gates.length) (p : Fin (gates.get i).kind.ni),
     let source := wiring i p
-    (gates.get i).is_seq = false → source < i
+    (gates.get i).kind.is_seq = false → source < i
 
 -- Helper to map raw adjacency lists to dependent Fin types
 -- Connections are now just a List of source gate indices
 def mkWiring (gates : List Gate) (connections : List (List Nat))
   (h_gates : 0 < gates.length)
-  (i : Fin gates.length) (p : Fin (gates.get i).ni) :
+  (i : Fin gates.length) (p : Fin (gates.get i).kind.ni) :
   Fin gates.length :=
 
   -- Safely extract the source gate index from the raw list
@@ -133,16 +102,6 @@ def State (C : Circuit) :=
 def initState (C : Circuit) : State C :=
   fun i => (C.gates.get i).init_val
 
--- Helper: Gathers the input vector for a specific gate based on the current wire states
-def gatherInputs (C : Circuit) (s : State C) (i : Fin C.gates.length) :
-  Vector Bool (C.gates.get i).ni :=
-  ⟨ Array.ofFn (fun p =>
-      let src := C.wiring i p
-      s src
-    ),
-    Array.size_ofFn
-  ⟩
-
 -- Helper: Dynamically searches the circuit for any gate flagged as an output.
 def gatherOutputs (C : Circuit) (s : State C) : List Bool :=
   let all_gates := List.finRange C.gates.length
@@ -155,76 +114,128 @@ def gatherOutputs (C : Circuit) (s : State C) : List Bool :=
 
 -- Evaluates the stable state of the circuit during the current clock cycle.
 -- Proven to terminate because combinatorial dependencies strictly decrease in index.
-def evalCombinatorial (C : Circuit) (curr_state : State C) (i : Fin C.gates.length) : Bool :=
-  let gate := C.gates.get i
-
-  if h : gate.is_seq = false then -- combinational branch
-    let inputs := ⟨ Array.ofFn (fun p =>
-      let src := C.wiring i p
-      have _h_wf : src < i := C.is_dag i p h
-      evalCombinatorial C curr_state src
-    ), Array.size_ofFn ⟩
-
-    gate.f inputs
-
-  else -- sequential branch
-    curr_state i
-
--- prove termination by observing that the index strictly decreases.
-termination_by i.val
+-- Fuel-based structural evaluator. Lean's kernel evaluates this instantly.
+def evalCombinatorial (C : Circuit) (fuel : Nat) (curr_state : State C) (i : Fin C.gates.length) : Bool :=
+  match fuel with
+  | 0 => false -- Out of fuel
+  | f + 1 =>
+    let gate := C.gates.get i
+    if gate.kind.is_seq then
+      curr_state i
+    else
+      match h_kind : gate.kind with
+      | .not_ => !(evalCombinatorial C f curr_state (C.wiring i ⟨0, by rw [h_kind]; decide⟩))
+      | .and_ => evalCombinatorial C f curr_state (C.wiring i ⟨0, by rw [h_kind]; decide⟩) &&
+                 evalCombinatorial C f curr_state (C.wiring i ⟨1, by rw [h_kind]; decide⟩)
+      | .or_  => evalCombinatorial C f curr_state (C.wiring i ⟨0, by rw [h_kind]; decide⟩) ||
+                 evalCombinatorial C f curr_state (C.wiring i ⟨1, by rw [h_kind]; decide⟩)
+      | .xor_ => evalCombinatorial C f curr_state (C.wiring i ⟨0, by rw [h_kind]; decide⟩) ^^
+                 evalCombinatorial C f curr_state (C.wiring i ⟨1, by rw [h_kind]; decide⟩)
+      | _     => false
 
 -- The step function models the clock edge.
 def step (C : Circuit) (stable_state : State C) (env_inputs : List Bool) : State C :=
   fun i =>
     let gate := C.gates.get i
-
-    if gate.ni = 0 then
+    match h_kind : gate.kind with
+    | .igate => -- External inputs latch the new values from the environment
       env_inputs.getD i.val false
-
-    else if gate.is_seq then
-      let next_d := gatherInputs C stable_state i
-      gate.f next_d
-
-    else
+    | .dff => -- Registers latch their current input value
+      let src := C.wiring i ⟨0, by rw [h_kind]; decide⟩
+      stable_state src
+    | _ => -- Combinatorial gates do not hold state across clock edges.
       false
 
--- Run a complete cycle
+-- Step remains unchanged, but runCycle injects the maximum fuel (C.gates.length)
 def runCycle (C : Circuit) (s : State C) (env_inputs : List Bool) : State C :=
-  let stable_current := evalCombinatorial C s
+  let stable_current := evalCombinatorial C C.gates.length s
   step C stable_current env_inputs
 
 /-
-  Simp Lemmas
+  AST
 -/
 
--- Tell simp to always unfold runCycle
-@[simp] lemma runCycle_def (C : Circuit) (s : State C) (env : List Bool) :
-  runCycle C s env = step C (evalCombinatorial C s) env := by rfl
+inductive CombExpr (Idx : Type)
+  | stateRef (i : Idx)
+  | false_const
+  | true_const
+  | not      (e : CombExpr Idx)
+  | and      (a b : CombExpr Idx)
+  | or       (a b : CombExpr Idx)
+  | xor      (a b : CombExpr Idx)
 
--- Tell simp to unfold gatherInputs
-@[simp] lemma gatherInputs_def (C : Circuit) (s : State C) (i : Fin C.gates.length) :
-  gatherInputs C s i = ⟨ Array.ofFn (fun p => s (C.wiring i p)), Array.size_ofFn ⟩ := by rfl
+structure AstCircuit (N : Nat) where
+  is_input : (i : Fin N) → Bool
+  is_seq   : (i : Fin N) → Bool
+  next_state : (i : Fin N) → CombExpr (Fin N)
 
--- Lemmas to tell Lean how to evaluate each Gate
-@[simp] lemma eval_not (is_out : Bool) (inputs : Vector Bool 1) :
-  (hdl.not is_out).f inputs = !(inputs.get 0) := by rfl
+def evalExpr {Idx : Type} (state : Idx → Bool) : CombExpr Idx → Bool
+  | .stateRef i   => state i
+  | .false_const  => false
+  | .true_const   => true
+  | .not e        => !(evalExpr state e)
+  | .and a b      => (evalExpr state a) && (evalExpr state b)
+  | .or a b       => (evalExpr state a) || (evalExpr state b)
+  | .xor a b      => (evalExpr state a) ^^ (evalExpr state b)
 
-@[simp] lemma eval_and (is_out : Bool) (inputs : Vector Bool 2) :
-  (hdl.and is_out).f inputs = (inputs.get 0 && inputs.get 1) := by rfl
+-- Aligned signature with structural `step`
+def stepAst {N : Nat} (C : AstCircuit N) (curr_state : Fin N → Bool) (env_inputs : List Bool) : Fin N → Bool :=
+  fun i =>
+    if C.is_input i then
+      env_inputs.getD i.val false
+    else
+      evalExpr curr_state (C.next_state i)
 
-@[simp] lemma eval_nand (is_out : Bool) (inputs : Vector Bool 2) :
-  (hdl.nand is_out).f inputs = !(inputs.get 0 && inputs.get 1) := by rfl
+def unrollDAG (C : Circuit) (fuel : Nat) (i : Fin C.gates.length) : CombExpr (Fin C.gates.length) :=
+  match fuel with
+  | 0 => .false_const -- Out of fuel (Mathematically impossible if C.is_dag is true)
+  | f + 1 =>
+    let gate := C.gates.get i
 
-@[simp] lemma eval_or (is_out : Bool) (inputs : Vector Bool 2) :
-  (hdl.or is_out).f inputs = (inputs.get 0 || inputs.get 1) := by rfl
+    if gate.kind.is_seq then
+      .stateRef i
+    else
+      match h_kind : gate.kind with
+      | .not_ =>
+          let p : Fin gate.kind.ni := ⟨0, by rw [h_kind]; decide⟩
+          .not (unrollDAG C f (C.wiring i p))
 
-@[simp] lemma eval_nor (is_out : Bool) (inputs : Vector Bool 2) :
-  (hdl.nor is_out).f inputs = !(inputs.get 0 || inputs.get 1) := by rfl
+      | .and_ =>
+          let p0 : Fin gate.kind.ni := ⟨0, by rw [h_kind]; decide⟩
+          let p1 : Fin gate.kind.ni := ⟨1, by rw [h_kind]; decide⟩
+          .and (unrollDAG C f (C.wiring i p0)) (unrollDAG C f (C.wiring i p1))
 
-@[simp] lemma eval_xor (is_out : Bool) (inputs : Vector Bool 2) :
-  (hdl.xor is_out).f inputs = (inputs.get 0 ^^ inputs.get 1) := by rfl
+      | .or_ =>
+          let p0 : Fin gate.kind.ni := ⟨0, by rw [h_kind]; decide⟩
+          let p1 : Fin gate.kind.ni := ⟨1, by rw [h_kind]; decide⟩
+          .or (unrollDAG C f (C.wiring i p0)) (unrollDAG C f (C.wiring i p1))
 
-@[simp] lemma eval_xnor (is_out : Bool) (inputs : Vector Bool 2) :
-  (hdl.xnor is_out).f inputs = !(inputs.get 0 ^^ inputs.get 1) := by rfl
+      | .xor_ =>
+          let p0 : Fin gate.kind.ni := ⟨0, by rw [h_kind]; decide⟩
+          let p1 : Fin gate.kind.ni := ⟨1, by rw [h_kind]; decide⟩
+          .xor (unrollDAG C f (C.wiring i p0)) (unrollDAG C f (C.wiring i p1))
+
+      | _ => .false_const
+
+def to_ast (C : Circuit) : AstCircuit C.gates.length := {
+  is_input := fun i =>
+    match (C.gates.get i).kind with
+    | .igate => true
+    | _ => false,
+
+  is_seq := fun i => (C.gates.get i).kind.is_seq,
+
+  next_state := fun i =>
+    let gate := C.gates.get i
+    match h_kind : gate.kind with
+    | .dff =>
+        let p : Fin gate.kind.ni := ⟨0, by rw [h_kind]; decide⟩
+        let src := C.wiring i p
+
+        -- We jumpstart the recursion with maximum possible fuel
+        unrollDAG C C.gates.length src
+
+    | _ => .false_const
+}
 
 end hdl
