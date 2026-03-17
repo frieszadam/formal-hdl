@@ -79,6 +79,18 @@ structure Circuit where
     let source := wiring i p
     (gates.get i).kind.is_seq = false → source < i
 
+
+structure Module where
+  -- The isolated, formally verified internal circuit
+  C : Circuit
+
+  -- The indices of the input ports.
+  -- (These should map to `.igate` components inside `C`)
+  in_ports : List (Fin C.gates.length)
+
+  -- The indices of the output ports.
+  out_ports : List (Fin C.gates.length)
+
 -- Helper to map raw adjacency lists to dependent Fin types
 -- Connections are now just a List of source gate indices
 def mkWiring (gates : List Gate) (connections : List (List Nat))
