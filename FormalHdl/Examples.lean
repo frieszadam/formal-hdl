@@ -206,19 +206,24 @@ def bitsToNat {C : Circuit} (s : State C) : List (Fin C.gates.length) → Nat
   | []      => 0
   | i :: is => (s i).toNat + 2 * bitsToNat s is
 
-class IsAdder (C : Circuit) (n : Nat) (a_bus b_bus : List (Fin C.gates.length))
-  (sum_bus : List (Fin C.gates.length)) (carry_out : Fin C.gates.length) where
+class IsAdder (C : Circuit) (n : Nat)
+  (a_bus b_bus : List (Fin C.gates.length))
+  (sum_bus : List (Fin C.gates.length))
+  (cin : Fin C.gates.length)
+  (cout : Fin C.gates.length) where
   widths_match : a_bus.length = n ∧ b_bus.length = n ∧ sum_bus.length = n
-  inputs_are_valid : ∀ i ∈ a_bus ++ b_bus, (C.gates.get i).kind.ni = 0
+  inputs_are_valid : ∀ i ∈ cin :: (a_bus ++ b_bus), (C.gates.get i).kind.ni = 0
   adder_correct : ∀ (s : State C),
     let stable_s := evalCombinatorial C C.gates.length s
     let A_val := bitsToNat stable_s a_bus
     let B_val := bitsToNat stable_s b_bus
     let Sum_val := bitsToNat stable_s sum_bus
-    let Cout_val := if stable_s carry_out then (2 ^ n) else 0
-    Sum_val + Cout_val = A_val + B_val
+    let Cin_val := if stable_s cin then 1 else 0
+    let Cout_val := if stable_s cout then (2 ^ n) else 0
+    Sum_val + Cout_val = A_val + B_val + Cin_val -- expression of what an adder is
 
-def adder_2_gates : List Gate := [
+-- RCA 2-Bit Adder Implementation
+def adder_rca_2_gates : List Gate := [
   igate false,
   igate false,
   igate false,
@@ -235,8 +240,7 @@ def adder_2_gates : List Gate := [
   and false,
   or false
 ]
-
-def adder_2_conns : List (List Nat) := [
+def adder_rca_2_conns : List (List Nat) := [
   [],
   [],
   [],
@@ -253,65 +257,109 @@ def adder_2_conns : List (List Nat) := [
   [10, 9],
   [11, 13]
 ]
+def adder_rca_2 : Circuit := { gates := adder_rca_2_gates, wiring := mkWiring adder_rca_2_gates adder_rca_2_conns (by decide), is_dag := by decide }
+def a_bus_rca_2 : List (Fin 15) := [⟨1, by decide⟩, ⟨3, by decide⟩]
+def b_bus_rca_2 : List (Fin 15) := [⟨2, by decide⟩, ⟨4, by decide⟩]
+def sum_bus_rca_2 : List (Fin 15) := [⟨7, by decide⟩, ⟨12, by decide⟩]
+def cin_rca_2 : Fin 15 := ⟨0, by decide⟩
+def cout_rca_2 : Fin 15 := ⟨14, by decide⟩
 
-def a_bus_2 : List (Fin 15) := [⟨1, by decide⟩, ⟨3, by decide⟩]
-def b_bus_2 : List (Fin 15) := [⟨2, by decide⟩, ⟨4, by decide⟩]
-def sum_bus_2 : List (Fin 15) := [⟨7, by decide⟩, ⟨12, by decide⟩]
-def cout_2 : Fin 15 := ⟨14, by decide⟩
+@[simp] lemma ast_rca_cin (s : State adder_rca_2) (i : Fin 15) (hi : i.val = 0 := by decide) : evalExpr s (unrollDAG adder_rca_2 15 i) = s ⟨0, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_rca_a_0 (s : State adder_rca_2) (i : Fin 15) (hi : i.val = 1 := by decide) : evalExpr s (unrollDAG adder_rca_2 15 i) = s ⟨1, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_rca_b_0 (s : State adder_rca_2) (i : Fin 15) (hi : i.val = 2 := by decide) : evalExpr s (unrollDAG adder_rca_2 15 i) = s ⟨2, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_rca_a_1 (s : State adder_rca_2) (i : Fin 15) (hi : i.val = 3 := by decide) : evalExpr s (unrollDAG adder_rca_2 15 i) = s ⟨3, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_rca_b_1 (s : State adder_rca_2) (i : Fin 15) (hi : i.val = 4 := by decide) : evalExpr s (unrollDAG adder_rca_2 15 i) = s ⟨4, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_rca_sum_0 (s : State adder_rca_2) (i : Fin 15) (hi : i.val = 7 := by decide) : evalExpr s (unrollDAG adder_rca_2 15 i) = ((s ⟨1, by decide⟩ ^^ s ⟨2, by decide⟩) ^^ s ⟨0, by decide⟩) := by cases i; subst hi; rfl
+@[simp] lemma ast_rca_sum_1 (s : State adder_rca_2) (i : Fin 15) (hi : i.val = 12 := by decide) : evalExpr s (unrollDAG adder_rca_2 15 i) = ((s ⟨3, by decide⟩ ^^ s ⟨4, by decide⟩) ^^ ((s ⟨1, by decide⟩ && s ⟨2, by decide⟩) || ((s ⟨1, by decide⟩ ^^ s ⟨2, by decide⟩) && s ⟨0, by decide⟩))) := by cases i; subst hi; rfl
+@[simp] lemma ast_rca_cout_2 (s : State adder_rca_2) (i : Fin 15) (hi : i.val = 14 := by decide) : evalExpr s (unrollDAG adder_rca_2 15 i) = ((s ⟨3, by decide⟩ && s ⟨4, by decide⟩) || ((s ⟨3, by decide⟩ ^^ s ⟨4, by decide⟩) && ((s ⟨1, by decide⟩ && s ⟨2, by decide⟩) || ((s ⟨1, by decide⟩ ^^ s ⟨2, by decide⟩) && s ⟨0, by decide⟩)))) := by cases i; subst hi; rfl
 
-def adder_2 : Circuit := {
-  gates := adder_2_gates,
-  wiring := mkWiring adder_2_gates adder_2_conns (by decide),
-  is_dag := by decide
-}
-
--- We use rfl because Lean's kernel can still compute the AST for a concrete circuit.
-@[simp] lemma ast_sum_0 (s : State adder_2) :
-  evalExpr s (unrollDAG adder_2 adder_2.gates.length ⟨7, by decide⟩) =
-  ((s ⟨1, by decide⟩ ^^ s ⟨2, by decide⟩) ^^ s ⟨0, by decide⟩) := by rfl
-
-@[simp] lemma ast_sum_1 (s : State adder_2) :
-  evalExpr s (unrollDAG adder_2 adder_2.gates.length ⟨12, by decide⟩) =
-  ((s ⟨3, by decide⟩ ^^ s ⟨4, by decide⟩) ^^
-    ((s ⟨1, by decide⟩ && s ⟨2, by decide⟩) ||
-     ((s ⟨1, by decide⟩ ^^ s ⟨2, by decide⟩) && s ⟨0, by decide⟩))) := by rfl
-
-@[simp] lemma ast_cout (s : State adder_2) :
-  evalExpr s (unrollDAG adder_2 adder_2.gates.length ⟨14, by decide⟩) =
-  ((s ⟨3, by decide⟩ && s ⟨4, by decide⟩) ||
-   ((s ⟨3, by decide⟩ ^^ s ⟨4, by decide⟩) &&
-    ((s ⟨1, by decide⟩ && s ⟨2, by decide⟩) ||
-     ((s ⟨1, by decide⟩ ^^ s ⟨2, by decide⟩) && s ⟨0, by decide⟩)))) := by rfl
-
-instance : IsAdder adder_2 2 a_bus_2 b_bus_2 sum_bus_2 cout_2 where
+instance : IsAdder adder_rca_2 2 a_bus_rca_2 b_bus_rca_2 sum_bus_rca_2 cin_rca_2 cout_rca_2 where
   widths_match := by decide
-  inputs_are_valid := by
-    intro i h
-    fin_cases h <;> rfl
+  inputs_are_valid := by intro i h; fin_cases h <;> rfl
   adder_correct := by
     intro s
-    -- 1. Bridge the structural evaluation to the AST
-    have equiv (i : Fin adder_2.gates.length) :
-      evalCombinatorial adder_2 adder_2.gates.length s i =
-      evalExpr s (unrollDAG adder_2 adder_2.gates.length i) := by
-      fin_cases i <;> rfl
-
-    -- 2. Use simp to apply the AST lemmas and expand bitsToNat
-    -- This turns the hardware problem into a pure boolean algebra problem.
+    have equiv (i : Fin 15) : evalCombinatorial adder_rca_2 adder_rca_2.gates.length s i = evalExpr s (unrollDAG adder_rca_2 15 i) := by fin_cases i <;> rfl
+    simp only [a_bus_rca_2, b_bus_rca_2, sum_bus_rca_2, cout_rca_2, cin_rca_2, bitsToNat, Bool.toNat]
     simp only [equiv]
+    simp only [ast_rca_cin, ast_rca_a_0, ast_rca_b_0, ast_rca_a_1, ast_rca_b_1, ast_rca_sum_0, ast_rca_sum_1, ast_rca_cout_2]
+    generalize h_cin : s ⟨0, by decide⟩ = cin
+    generalize h_a_0 : s ⟨1, by decide⟩ = a_0
+    generalize h_b_0 : s ⟨2, by decide⟩ = b_0
+    generalize h_a_1 : s ⟨3, by decide⟩ = a_1
+    generalize h_b_1 : s ⟨4, by decide⟩ = b_1
+    cases cin <;> cases a_0 <;> cases b_0 <;> cases a_1 <;> cases b_1 <;> decide
 
-    -- 3. Bit-blast the 5 inputs
-    let cin := s ⟨0, by decide⟩
-    let a0  := s ⟨1, by decide⟩
-    let b0  := s ⟨2, by decide⟩
-    let a1  := s ⟨3, by decide⟩
-    let b1  := s ⟨4, by decide⟩
+-- CLA 2-Bit Adder Implementation
+def adder_cla_2_gates : List Gate := [
+  igate false,
+  igate false,
+  igate false,
+  igate false,
+  igate false,
+  xor false,
+  and false,
+  xor false,
+  and false,
+  and false,
+  or false,
+  and false,
+  and false,
+  and false,
+  or false,
+  or false,
+  xor false,
+  xor false
+]
+def adder_cla_2_conns : List (List Nat) := [
+  [],
+  [],
+  [],
+  [],
+  [],
+  [1, 2],
+  [1, 2],
+  [3, 4],
+  [3, 4],
+  [5, 0],
+  [6, 9],
+  [7, 6],
+  [7, 5],
+  [12, 0],
+  [8, 11],
+  [14, 13],
+  [5, 0],
+  [7, 10]
+]
+def adder_cla_2 : Circuit := { gates := adder_cla_2_gates, wiring := mkWiring adder_cla_2_gates adder_cla_2_conns (by decide), is_dag := by decide }
+def a_bus_cla_2 : List (Fin 18) := [⟨1, by decide⟩, ⟨3, by decide⟩]
+def b_bus_cla_2 : List (Fin 18) := [⟨2, by decide⟩, ⟨4, by decide⟩]
+def sum_bus_cla_2 : List (Fin 18) := [⟨16, by decide⟩, ⟨17, by decide⟩]
+def cin_cla_2 : Fin 18 := ⟨0, by decide⟩
+def cout_cla_2 : Fin 18 := ⟨15, by decide⟩
 
-    -- Clear the state dependency
-    revert cin a0 b0 a1 b1
-    intro cin a0 b0 a1 b1
+@[simp] lemma ast_cla_cin (s : State adder_cla_2) (i : Fin 18) (hi : i.val = 0 := by decide) : evalExpr s (unrollDAG adder_cla_2 18 i) = s ⟨0, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_cla_a_0 (s : State adder_cla_2) (i : Fin 18) (hi : i.val = 1 := by decide) : evalExpr s (unrollDAG adder_cla_2 18 i) = s ⟨1, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_cla_b_0 (s : State adder_cla_2) (i : Fin 18) (hi : i.val = 2 := by decide) : evalExpr s (unrollDAG adder_cla_2 18 i) = s ⟨2, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_cla_a_1 (s : State adder_cla_2) (i : Fin 18) (hi : i.val = 3 := by decide) : evalExpr s (unrollDAG adder_cla_2 18 i) = s ⟨3, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_cla_b_1 (s : State adder_cla_2) (i : Fin 18) (hi : i.val = 4 := by decide) : evalExpr s (unrollDAG adder_cla_2 18 i) = s ⟨4, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_cla_sum_0 (s : State adder_cla_2) (i : Fin 18) (hi : i.val = 16 := by decide) : evalExpr s (unrollDAG adder_cla_2 18 i) = ((s ⟨1, by decide⟩ ^^ s ⟨2, by decide⟩) ^^ s ⟨0, by decide⟩) := by cases i; subst hi; rfl
+@[simp] lemma ast_cla_sum_1 (s : State adder_cla_2) (i : Fin 18) (hi : i.val = 17 := by decide) : evalExpr s (unrollDAG adder_cla_2 18 i) = ((s ⟨3, by decide⟩ ^^ s ⟨4, by decide⟩) ^^ ((s ⟨1, by decide⟩ && s ⟨2, by decide⟩) || ((s ⟨1, by decide⟩ ^^ s ⟨2, by decide⟩) && s ⟨0, by decide⟩))) := by cases i; subst hi; rfl
+@[simp] lemma ast_cla_cout_2 (s : State adder_cla_2) (i : Fin 18) (hi : i.val = 15 := by decide) : evalExpr s (unrollDAG adder_cla_2 18 i) = (((s ⟨3, by decide⟩ && s ⟨4, by decide⟩) || ((s ⟨3, by decide⟩ ^^ s ⟨4, by decide⟩) && (s ⟨1, by decide⟩ && s ⟨2, by decide⟩))) || (((s ⟨3, by decide⟩ ^^ s ⟨4, by decide⟩) && (s ⟨1, by decide⟩ ^^ s ⟨2, by decide⟩)) && s ⟨0, by decide⟩)) := by cases i; subst hi; rfl
 
-    -- 4. Final verification
-    cases cin <;> cases a0 <;> cases b0 <;> cases a1 <;> cases b1 <;> sorry
+instance : IsAdder adder_cla_2 2 a_bus_cla_2 b_bus_cla_2 sum_bus_cla_2 cin_cla_2 cout_cla_2 where
+  widths_match := by decide
+  inputs_are_valid := by intro i h; fin_cases h <;> rfl
+  adder_correct := by
+    intro s
+    have equiv (i : Fin 18) : evalCombinatorial adder_cla_2 adder_cla_2.gates.length s i = evalExpr s (unrollDAG adder_cla_2 18 i) := by fin_cases i <;> rfl
+    simp only [a_bus_cla_2, b_bus_cla_2, sum_bus_cla_2, cout_cla_2, cin_cla_2, bitsToNat, Bool.toNat]
+    simp only [equiv]
+    simp only [ast_cla_cin, ast_cla_a_0, ast_cla_b_0, ast_cla_a_1, ast_cla_b_1, ast_cla_sum_0, ast_cla_sum_1, ast_cla_cout_2]
+    generalize h_cin : s ⟨0, by decide⟩ = cin
+    generalize h_a_0 : s ⟨1, by decide⟩ = a_0
+    generalize h_b_0 : s ⟨2, by decide⟩ = b_0
+    generalize h_a_1 : s ⟨3, by decide⟩ = a_1
+    generalize h_b_1 : s ⟨4, by decide⟩ = b_1
+    cases cin <;> cases a_0 <;> cases b_0 <;> cases a_1 <;> cases b_1 <;> decide
 
 end hdl.examples
