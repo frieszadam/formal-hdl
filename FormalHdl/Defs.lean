@@ -147,6 +147,11 @@ def runCycle (C : Circuit) (s : State C) (env_inputs : List Bool) : State C :=
   let stable_current := evalCombinatorial C C.gates.length s
   step C stable_current env_inputs
 
+-- Takes an input trace which will be passed through the circuit in consecutive cycle
+def runCycles (C : Circuit) (s : State C) : List (List Bool) → List (State C)
+  | [] => [s]
+  | (inps :: rest) => s :: runCycles C (runCycle C s inps) rest
+
 -- ==========================================
 -- 4. The Formal Contracts & Proof-Carrying Typeclasses
 -- ==========================================
@@ -168,6 +173,23 @@ class IsAdder (C : Circuit) (n : Nat)
     let Cout_val := if stable_s cout then (2 ^ n) else 0
     Sum_val + Cout_val = A_val + B_val + Cin_val
 
+class IsSubtractor (C : Circuit) (n : Nat)
+  (a_bus b_bus : List (Fin C.gates.length))
+  (diff_bus : List (Fin C.gates.length))
+  (bin : Fin C.gates.length)
+  (bout : Fin C.gates.length) : Prop where
+  widths_match : a_bus.length = n ∧ b_bus.length = n ∧ diff_bus.length = n
+  inputs_are_valid : ∀ i ∈ bin :: (a_bus ++ b_bus), (C.gates.get i).kind.ni = 0
+  sub_correct : ∀ (s : Fin C.gates.length → Bool),
+    let stable_s := evalCombinatorial C C.gates.length s
+    let A_val := bitsToNat stable_s a_bus
+    let B_val := bitsToNat stable_s b_bus
+    let Diff_val := bitsToNat stable_s diff_bus
+    let Bin_val := if stable_s bin then 1 else 0
+    let Bout_val := if stable_s bout then (2 ^ n) else 0
+    -- Arranged as A + Bout*2^n = B + Diff + Bin to avoid negative integer math!
+    A_val + Bout_val = B_val + Diff_val + Bin_val
+
 class IsComparator (C : Circuit) (n : Nat)
   (a_bus b_bus : List (Fin C.gates.length))
   (out : Fin C.gates.length) : Prop where
@@ -180,6 +202,16 @@ class IsComparator (C : Circuit) (n : Nat)
     let Out_val := stable_s out
     Out_val = (A_val < B_val)
 
+class IsCounter (C : Circuit) (n : Nat) (q_bus : List (Fin C.gates.length)) (inc : Fin C.gates.length) : Prop where
+  widths_match : q_bus.length = n
+  inputs_are_valid : (C.gates.get inc).kind.ni = 0 ∧ ∀ i ∈ q_bus, (C.gates.get i).kind.is_seq = true
+  incr_on_high : ∀ (s : State C) (env : List Bool),
+    s inc = true →
+    bitsToNat (runCycle C s env) q_bus = (bitsToNat s q_bus + 1) % (2 ^ n)
+  hold_on_low : ∀ (s : State C) (env : List Bool),
+    s inc = false →
+    bitsToNat (runCycle C s env) q_bus = bitsToNat s q_bus
+
 -- Specific Parameterized Verified Implementations
 class VerifiedAdder1 (C : Circuit) (a b sum : List (Fin C.gates.length)) (cin cout : Fin C.gates.length) : Prop where
   proof : IsAdder C 1 a b sum cin cout
@@ -190,8 +222,26 @@ class VerifiedAdder2 (C : Circuit) (a b sum : List (Fin C.gates.length)) (cin co
 class VerifiedAdder4 (C : Circuit) (a b sum : List (Fin C.gates.length)) (cin cout : Fin C.gates.length) : Prop where
   proof : IsAdder C 4 a b sum cin cout
 
+class VerifiedSubtractor1 (C : Circuit) (a b diff : List (Fin C.gates.length)) (bin bout : Fin C.gates.length) : Prop where
+  proof : IsSubtractor C 1 a b diff bin bout
+
+class VerifiedSubtractor2 (C : Circuit) (a b diff : List (Fin C.gates.length)) (bin bout : Fin C.gates.length) : Prop where
+  proof : IsSubtractor C 2 a b diff bin bout
+
+class VerifiedSubtractor4 (C : Circuit) (a b diff : List (Fin C.gates.length)) (bin bout : Fin C.gates.length) : Prop where
+  proof : IsSubtractor C 4 a b diff bin bout
+
 class VerifiedComp4 (C : Circuit) (a b : List (Fin C.gates.length)) (out : Fin C.gates.length) : Prop where
   proof : IsComparator C 4 a b out
+
+class VerifiedCounter1 (C : Circuit) (q_bus : List (Fin C.gates.length)) (inc : Fin C.gates.length) : Prop where
+  proof : IsCounter C 1 q_bus inc
+
+class VerifiedCounter2 (C : Circuit) (q_bus : List (Fin C.gates.length)) (inc : Fin C.gates.length) : Prop where
+  proof : IsCounter C 2 q_bus inc
+
+class VerifiedCounter4 (C : Circuit) (q_bus : List (Fin C.gates.length)) (inc : Fin C.gates.length) : Prop where
+  proof : IsCounter C 4 q_bus inc
 
 -- ==========================================
 -- 5. AST Evaluator
