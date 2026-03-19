@@ -1,4 +1,19 @@
+-- FormalHDL — Verified Adder Components
 -- Adam Friesz, Winter 2026
+--
+-- Three adder designs are proved correct against `IsAdder`:
+--
+--   adder_rca_1          — 1-bit ripple-carry full adder (gate-level XOR/AND/OR)
+--   adder_hierarchical_2 — 2-bit adder composed of two adder_1 cells
+--   adder_hierarchical_4 — 4-bit adder composed of two adder_2 cells
+--   adder_cla_2          — 2-bit carry-lookahead adder (flat gate-level)
+--
+-- All proofs follow the same four-step recipe (see Defs.lean §5):
+--   1. Establish the unroll equivalence by `fin_cases i <;> rfl`.
+--   2. Apply `@[simp]` boundary lemmas to rewrite circuit nodes to Bool exprs.
+--   3. Generalise each input bit to a fresh variable.
+--   4. Exhaust all 2^k input combinations with `decide`.
+
 import FormalHdl.Defs
 namespace hdl.examples.adder
 open hdl
@@ -6,7 +21,10 @@ set_option linter.style.longLine false
 set_option linter.style.whitespace false
 
 
+-- ============================================================
 -- COMPONENT: adder_rca_1
+-- A standard 1-bit full adder: XOR for sum, AND/OR for carry.
+-- ============================================================
 def adder_rca_1_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .igate false,
@@ -58,7 +76,10 @@ instance instIsAdder_adder_rca_1 : IsAdder adder_rca_1 1 a_bus_adder_rca_1 b_bus
 instance instVerifiedAdder1_adder_rca_1 : VerifiedAdder1 adder_rca_1 a_bus_adder_rca_1 b_bus_adder_rca_1 sum_bus_adder_rca_1 cin_adder_rca_1 cout_adder_rca_1 where
   proof := instIsAdder_adder_rca_1
 
+-- ============================================================
 -- COMPONENT: adder_hierarchical_2
+-- 2-bit adder built from two adder_1 standard cells connected in ripple-carry style.
+-- ============================================================
 def adder_hierarchical_2_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .igate false,
@@ -117,7 +138,14 @@ instance instIsAdder_adder_hierarchical_2 : IsAdder adder_hierarchical_2 2 a_bus
 instance instVerifiedAdder2_adder_hierarchical_2 : VerifiedAdder2 adder_hierarchical_2 a_bus_adder_hierarchical_2 b_bus_adder_hierarchical_2 sum_bus_adder_hierarchical_2 cin_adder_hierarchical_2 cout_adder_hierarchical_2 where
   proof := instIsAdder_adder_hierarchical_2
 
+-- ============================================================
 -- COMPONENT: adder_hierarchical_4
+--
+-- 4-bit adder composed of two adder_2 cells in ripple-carry fashion.
+-- Gates 0–8: primary inputs (cin, a[0..3], b[0..3]).
+-- Gates 9–11: lower adder_2 cell (sum bits 0,1 and carry-mid).
+-- Gates 12–14: upper adder_2 cell (sum bits 2,3 and cout).
+-- ============================================================
 def adder_hierarchical_4_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .igate false,
@@ -198,7 +226,29 @@ instance instIsAdder_adder_hierarchical_4 : IsAdder adder_hierarchical_4 4 a_bus
 instance instVerifiedAdder4_adder_hierarchical_4 : VerifiedAdder4 adder_hierarchical_4 a_bus_adder_hierarchical_4 b_bus_adder_hierarchical_4 sum_bus_adder_hierarchical_4 cin_adder_hierarchical_4 cout_adder_hierarchical_4 where
   proof := instIsAdder_adder_hierarchical_4
 
+-- ============================================================
 -- COMPONENT: adder_cla_2
+--
+-- 2-bit carry-lookahead adder.  Unlike the hierarchical design, this circuit
+-- computes carry signals in parallel using generate (G = a&b) and propagate
+-- (P = a^b) terms, avoiding the ripple-carry delay.
+--
+-- Gate layout (18 gates):
+--   0–4   : igate   (cin, a[0], b[0], a[1], b[1])
+--   5     : xor_    P0 = a[0] ^ b[0]
+--   6     : and_    G0 = a[0] & b[0]
+--   7     : xor_    P1 = a[1] ^ b[1]
+--   8     : and_    G1 = a[1] & b[1]
+--   9     : and_    P0 & cin
+--   10    : or_     c1 = G0 | (P0 & cin)        ← carry into bit 1
+--   11    : and_    P1 & G0
+--   12    : and_    P1 & P0
+--   13    : and_    (P1 & P0) & cin
+--   14    : or_     G1 | (P1 & G0)
+--   15    : or_     cout = G1 | (P1&G0) | (P1&P0&cin)
+--   16    : xor_    sum[0] = P0 ^ cin
+--   17    : xor_    sum[1] = P1 ^ c1
+-- ============================================================
 def adder_cla_2_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .igate false,
@@ -256,6 +306,9 @@ def cout_adder_cla_2 : Fin 18 := ⟨15, by decide⟩
 @[simp] lemma ast_adder_cla_2_sum_1 (s : State adder_cla_2) (i : Fin 18) (hi : i.val = 17 := by decide) : evalExpr s (unrollDAG adder_cla_2 18 i) = ((s ⟨3, by decide⟩ ^^ s ⟨4, by decide⟩) ^^ ((s ⟨1, by decide⟩ && s ⟨2, by decide⟩) || ((s ⟨1, by decide⟩ ^^ s ⟨2, by decide⟩) && s ⟨0, by decide⟩))) := by cases i; subst hi; rfl
 @[simp] lemma ast_adder_cla_2_cout (s : State adder_cla_2) (i : Fin 18) (hi : i.val = 15 := by decide) : evalExpr s (unrollDAG adder_cla_2 18 i) = (((s ⟨3, by decide⟩ && s ⟨4, by decide⟩) || ((s ⟨3, by decide⟩ ^^ s ⟨4, by decide⟩) && (s ⟨1, by decide⟩ && s ⟨2, by decide⟩))) || (((s ⟨3, by decide⟩ ^^ s ⟨4, by decide⟩) && (s ⟨1, by decide⟩ ^^ s ⟨2, by decide⟩)) && s ⟨0, by decide⟩)) := by cases i; subst hi; rfl
 
+-- KEY RESULT
+-- Theorem: adder_cla_2 satisfies IsAdder with n=2.
+-- This confirms that the CLA and hierarchical-2 designs are functionally equivalent.
 instance instIsAdder_adder_cla_2 : IsAdder adder_cla_2 2 a_bus_adder_cla_2 b_bus_adder_cla_2 sum_bus_adder_cla_2 cin_adder_cla_2 cout_adder_cla_2 where
   widths_match := by decide
   inputs_are_valid := by intro i h; fin_cases h <;> rfl

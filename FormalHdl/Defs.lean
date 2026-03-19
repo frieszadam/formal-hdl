@@ -1,4 +1,12 @@
+-- FormalHDL — Core Definitions
 -- Adam Friesz, Winter 2026
+--
+-- This file defines:
+--   1. Pure mathematical helpers (bitsToNat, compute_adder_*)
+--   2. Core structural types (GateKind, Gate, Circuit)
+--   3. The circuit evaluator (evalCombinatorial, step, runCycle, runCycles)
+--   4. Formal contracts as typeclasses (IsAdder, IsSubtractor, …)
+--   5. An AST evaluator used in proofs (CombExpr, evalExpr, unrollDAG)
 
 import mathlib
 

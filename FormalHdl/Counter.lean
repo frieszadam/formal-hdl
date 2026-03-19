@@ -1,4 +1,27 @@
+-- FormalHDL — Verified Counter Components
 -- Adam Friesz, Winter 2026
+--
+-- Five counter designs proved correct:
+--
+--   up_counter_1        — 1-bit synchronous up-counter with enable (IsUpCounter n=1)
+--   up_counter_2        — 2-bit synchronous up-counter with enable (IsUpCounter n=2)
+--   up_counter_4        — 4-bit synchronous up-counter with enable (IsUpCounter n=4)
+--   up_down_counter_4   — 4-bit up/down-counter (IsUpDownCounter n=4)
+--   up_down_counter_5   — 5-bit up/down-counter (IsUpDownCounter n=5)
+--
+-- All up-counters use adder cells to compute Q+1 each cycle (when enabled).
+-- The up/down-counters use an adder whose B-input is driven by a mux:
+--   incr=1,decr=0 → add XOR(incr,decr) = 1            (increment)
+--   incr=0,decr=1 → add 1111...1 (all-ones = -1 mod 2^n) (decrement)
+--   incr=decr     → add 0                              (hold)
+--
+-- The 5-bit counter (up_down_counter_5) extends the 4-bit slice by chaining
+-- a 1-bit adder_1 cell to propagate the carry into the 5th flip-flop.
+--
+-- Proof structure: same four-step recipe as all other components.
+-- Sequential components additionally require `runCycle_*` lemmas that unfold
+-- (runCycle C s env) ⟨dff_index, _⟩ = evalCombinatorial C n s ⟨next_state_gate, _⟩.
+
 import FormalHdl.Defs
 namespace hdl.examples.counter
 open hdl
@@ -6,7 +29,19 @@ set_option linter.style.longLine false
 set_option linter.style.whitespace false
 
 
+-- ============================================================
 -- COMPONENT: up_counter_1
+--
+-- 1-bit synchronous up-counter with active-high enable.
+-- Gate layout (5 gates):
+--   0 : igate       inc (enable)
+--   1 : not_        ~inc   (used to build constant-0 for carry-in)
+--   2 : and_        inc & ~inc = 0  (hardwired false: B input to adder)
+--   3 : dff         Q[0]  (state register)
+--   4 : adder_1 b=0 next_Q[0] = inc + Q[0] + 0
+-- The adder is connected as: cin=inc, a=Q[0], b=0.
+-- When inc=1: next = Q+1 mod 2.  When inc=0: next = Q.
+-- ============================================================
 def up_counter_1_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .not_ false,
@@ -61,7 +96,18 @@ instance instIsUpCounter_up_counter_1 : IsUpCounter up_counter_1 1 q_bus_up_coun
 instance instVerifiedUpCounter1_up_counter_1 : VerifiedUpCounter1 up_counter_1 q_bus_up_counter_1 inc_up_counter_1 where
   proof := instIsUpCounter_up_counter_1
 
+-- ============================================================
 -- COMPONENT: up_counter_2
+--
+-- 2-bit synchronous up-counter with active-high enable.
+-- Gate layout (7 gates):
+--   0   : igate         inc
+--   1   : not_          ~inc
+--   2   : and_          0 (constant false, B inputs to adder)
+--   3,4 : dff           Q[0], Q[1]
+--   5,6 : adder_2 b=0,1 next_Q[0], next_Q[1]
+-- Adder inputs: cin=inc, A={Q[0],Q[1]}, B={0,0}.
+-- ============================================================
 def up_counter_2_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .not_ false,
@@ -125,7 +171,17 @@ instance instIsUpCounter_up_counter_2 : IsUpCounter up_counter_2 2 q_bus_up_coun
 instance instVerifiedUpCounter2_up_counter_2 : VerifiedUpCounter2 up_counter_2 q_bus_up_counter_2 inc_up_counter_2 where
   proof := instIsUpCounter_up_counter_2
 
+-- ============================================================
 -- COMPONENT: up_counter_4
+--
+-- 4-bit synchronous up-counter with active-high enable.
+-- Same structure as up_counter_2 but scaled to 4 bits:
+--   0      : igate           inc
+--   1      : not_            ~inc
+--   2      : and_            0 (constant false)
+--   3–6    : dff             Q[0..3]
+--   7–10   : adder_4 b=0..3 next_Q[0..3]
+-- ============================================================
 def up_counter_4_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .not_ false,
@@ -207,7 +263,22 @@ instance instIsUpCounter_up_counter_4 : IsUpCounter up_counter_4 4 q_bus_up_coun
 instance instVerifiedUpCounter4_up_counter_4 : VerifiedUpCounter4 up_counter_4 q_bus_up_counter_4 inc_up_counter_4 where
   proof := instIsUpCounter_up_counter_4
 
+-- ============================================================
 -- COMPONENT: up_down_counter_4
+--
+-- 4-bit synchronous up/down-counter.
+-- Inputs: incr (gate 0), decr (gate 1).
+-- State:  Q[0..3] held in DFFs at gates 2–5.
+--
+-- The combinatorial logic computes the adder B-inputs:
+--   b_xor   = incr XOR decr  (gate 10 via OR of gates 8 and 9)
+--   b_decr  = decr & ~incr   (gate 11, replicated for bits 1–3 at gates 12–14)
+--   cin     = incr & ~incr = 0  (gate 14: hardwired false)
+-- This yields:
+--   incr=1, decr=0 → B = {0001}  → Q+1
+--   incr=0, decr=1 → B = {1111}  → Q+15 = Q−1  (mod 16)
+--   incr=decr      → B = {0000}  → Q unchanged
+-- ============================================================
 def up_down_counter_4_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .igate false,
@@ -324,7 +395,22 @@ instance instIsUpDownCounter_up_down_counter_4 : IsUpDownCounter up_down_counter
 instance instVerifiedUpDownCounter4_up_down_counter_4 : VerifiedUpDownCounter4 up_down_counter_4 q_bus_up_down_counter_4 incr_up_down_counter_4 decr_up_down_counter_4 where
   proof := instIsUpDownCounter_up_down_counter_4
 
+-- ============================================================
 -- COMPONENT: up_down_counter_5
+--
+-- 5-bit synchronous up/down-counter, extending up_down_counter_4.
+-- The lower 4 bits are handled identically to up_down_counter_4
+-- (gates 0–20, same B-input generation logic).
+-- The 5th bit Q[4] is stored in a DFF at gate 6 and is driven by
+-- an adder_1 cell (gate 22) that adds the carry-out from the
+-- 4-bit slice (gate 21 bit=4) to Q[4] with B=decr_and_notincr.
+--
+-- Gate layout additions over the 4-bit version:
+--   6   : dff            Q[4]
+--   16  : and_           (same as gate 14, extra b-input copy for 5th bit)
+--   21  : adder_4 bit=4  carry-out from lower 4 bits
+--   22  : adder_1 bit=0  next_Q[4] = carry_out + Q[4] + b_decr
+-- ============================================================
 def up_down_counter_5_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .igate false,

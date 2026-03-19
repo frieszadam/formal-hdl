@@ -1,4 +1,14 @@
+-- FormalHDL — Verified Comparator Component
 -- Adam Friesz, Winter 2026
+--
+-- A single 4-bit unsigned less-than comparator:
+--
+--   comparator_gate_4 : IsComparator with n=4, output = (A < B)
+--
+-- Implementation strategy: A < B  iff  the carry-out of (0 + A − B) is zero,
+-- equivalently: compute A + (~B) with a fixed cin=0, then invert the carry-out.
+-- The adder_4 cell is reused here (with cin=0 hardwired via AND-with-self-inverse).
+
 import FormalHdl.Defs
 namespace hdl.examples.comparator
 open hdl
@@ -6,7 +16,10 @@ set_option linter.style.longLine false
 set_option linter.style.whitespace false
 
 
+-- ============================================================
 -- COMPONENT: comparator_gate_4
+-- 4-bit unsigned comparator: Out = (A < B).
+-- ============================================================
 def comparator_gate_4_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .igate false,
@@ -61,6 +74,8 @@ def out_comparator_gate_4 : Fin 17 := ⟨16, by decide⟩
 @[simp] lemma ast_comparator_gate_4_b_3 (s : State comparator_gate_4) (i : Fin 17) (hi : i.val = 7 := by decide) : evalExpr s (unrollDAG comparator_gate_4 17 i) = s ⟨7, by decide⟩ := by cases i; subst hi; rfl
 @[simp] lemma ast_comparator_gate_4_out (s : State comparator_gate_4) (i : Fin 17) (hi : i.val = 16 := by decide) : evalExpr s (unrollDAG comparator_gate_4 17 i) = !((compute_adder_4 (!((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)))) (s ⟨0, by decide⟩) (s ⟨1, by decide⟩) (s ⟨2, by decide⟩) (s ⟨3, by decide⟩) (!(s ⟨4, by decide⟩)) (!(s ⟨5, by decide⟩)) (!(s ⟨6, by decide⟩)) (!(s ⟨7, by decide⟩))).testBit 4) := by cases i; subst hi; rfl
 
+-- Theorem: comparator_gate_4 satisfies IsComparator with n=4, output = (A < B).
+-- Proof: 2^8 = 256 cases.
 instance instIsComp_comparator_gate_4 : IsComparator comparator_gate_4 4 a_bus_comparator_gate_4 b_bus_comparator_gate_4 out_comparator_gate_4 where
   widths_match := by decide
   inputs_are_valid := by intro i h; fin_cases h <;> rfl

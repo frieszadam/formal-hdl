@@ -1,3 +1,79 @@
+# components.py — Lean 4 Netlist & Proof Code Generator
+# Adam Friesz, Winter 2026
+#
+# PURPOSE
+# -------
+# This script is the build-time code generator for the FormalHDL project.
+# It produces the Lean 4 source files that define verified circuit components
+# (Adder.lean, Subtractor.lean, Comparator.lean, Counter.lean, Decoder.lean).
+# Writing these files by hand would be tedious and error-prone because every
+# component requires three tightly coupled artefacts:
+#   1. Gate-list and wiring-list definitions  (the circuit netlist)
+#   2. @[simp] boundary lemmas               (one per named node, proved by rfl)
+#   3. IsAdder / IsSubtractor / … instance   (the machine-checked contract proof)
+# The generator writes all three in a consistent, mechanically correct way from
+# a high-level netlist description.
+#
+# HOW IT FITS INTO THE PROJECT
+# ----------------------------
+# The intended workflow is:
+#   python components.py          # regenerate one or more .lean files
+#   lake build                    # Lean checks all proofs
+#
+# To (re)generate a file, uncomment the relevant block at the bottom of the
+# script (each block is guarded by a comment) and run the script.  The output
+# is written directly to the FormalHdl/ directory so it can be imported by the
+# rest of the project.
+#
+# ARCHITECTURE
+# ------------
+# All component generators inherit from VerifiedComponent, which handles:
+#   • _add_gate()        — registers a gate and builds the wire→gate-index map
+#   • _get_bool_expr()   — recursively unrolls a wire's logic into a Lean Bool
+#                          expression (used to generate boundary lemma RHS values)
+#   • generate_gates()   — emits the `_gates`, `_conns`, and `Circuit` definitions
+#
+# Subclasses override _build_netlist() to describe their topology using _add_gate()
+# calls, and generate_equivalence_proof() to emit the boundary lemmas and contract
+# instance.  The five concrete families are:
+#
+#   Adder subclasses
+#     RippleCarryAdder       — flat gate-level RCA (used for adder_rca_1)
+#     HierarchicalAdder      — greedy macro tiling with ADDER_4/2/1 cells
+#     CarryLookaheadAdder    — flat gate-level CLA
+#
+#   Subtractor subclasses
+#     GateLevelSubtractor1   — 1-bit XOR/AND/NOT subtractor
+#     HierarchicalSubtractor2/4 — two's-complement via ADDER_2/4 macros
+#
+#   HierarchicalComparator   — A < B via subtractor carry-out + NOT
+#
+#   HierarchicalUpCounter    — synchronous up-counter; B-bus held at zero,
+#                              cin driven by the enable signal
+#
+#   HierarchicalUpDownCounter — synchronous up/down-counter; a mux built from
+#                               AND/OR gates drives the B-bus:
+#                                 incr=1,decr=0 → B = 000...1  (+1)
+#                                 incr=0,decr=1 → B = 111...1  (-1 mod 2^n)
+#                                 incr=decr     → B = 000...0  (hold)
+#
+#   Decoder                  — gate-level N-to-2^N one-hot decoder
+#
+# STANDARD CELLS vs PHYSICAL GATES
+# ---------------------------------
+# _add_gate() accepts both:
+#   • Physical gates: "NOT", "AND", "OR", "XOR", "INPUT", "DFF"
+#     → mapped to GateKind.not_, .and_, .or_, .xor_, .igate, .dff
+#   • Standard cells: "ADDER_1 <bit>", "ADDER_2 <bit>", "ADDER_4 <bit>",
+#     "UP_DOWN_COUNT_1/2/4 <bit>", "COMP_1/2/4", "DECODER_3 <bit>"
+#     → mapped to the parameterised GateKind constructors in Defs.lean
+#
+# Standard cells are "proof-carrying macros": Defs.lean's evalCombinatorial
+# already knows their semantics, so the unroller (_get_bool_expr) can inline
+# them as calls to compute_adder_1/2/4 rather than expanding every sub-gate.
+# This keeps boundary lemmas readable and keeps the Boolean case-split in
+# adder_correct / sub_correct manageable.
+
 class VerifiedComponent:
     """The Unified Base Class with Proof-Carrying Standard Cell Support."""
     def __init__(self, name: str, n_bits: int):

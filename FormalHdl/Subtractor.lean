@@ -1,4 +1,21 @@
+-- FormalHDL — Verified Subtractor Components
 -- Adam Friesz, Winter 2026
+--
+-- Three subtractor designs proved correct against `IsSubtractor`:
+--
+--   subtractor_gate_1  — 1-bit full subtractor at the gate level
+--   subtractor_hier_2  — 2-bit subtractor via two's-complement + adder_2 cell
+--   subtractor_hier_4  — 4-bit subtractor via two's-complement + adder_4 cell
+--
+-- All three implement A − B − Bin using the identity
+--     A + Bout·2^n = B + Diff + Bin
+-- which avoids negative-number arithmetic in Nat.
+--
+-- The hier_2 and hier_4 designs exploit the algebraic equivalence
+--     A − B = A + (~B) + 1
+-- (two's-complement negation), routing ~B bits and ~Bin as inputs to an adder
+-- and inverting the carry-out to obtain Bout.
+
 import FormalHdl.Defs
 namespace hdl.examples.subtractor
 open hdl
@@ -6,7 +23,26 @@ set_option linter.style.longLine false
 set_option linter.style.whitespace false
 
 
+-- ============================================================
 -- COMPONENT: subtractor_gate_1
+--
+-- 1-bit full subtractor, built entirely from primitive gates.
+-- The circuit computes Diff = A − B − Bin using:
+--     Diff = A ^ ~B ^ ~Bin
+--     Bout = ~((A & ~B) | ((A ^ ~B) & ~Bin))
+-- Gate layout:
+--   0  : igate  (bin)
+--   1  : igate  (a)
+--   2  : igate  (b)
+--   3  : not_   (~b)
+--   4  : not_   (~bin)
+--   5  : xor_   a ^ ~b
+--   6  : and_   a & ~b
+--   7  : xor_   diff = (a ^ ~b) ^ ~bin
+--   8  : and_   (a ^ ~b) & ~bin
+--   9  : or_    (a & ~b) | ((a^~b) & ~bin)
+--   10 : not_   bout = ~(...)
+-- ============================================================
 def subtractor_gate_1_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .igate false,
@@ -64,7 +100,14 @@ instance instIsSubtractor_subtractor_gate_1 : IsSubtractor subtractor_gate_1 1 a
 instance instVerifiedSubtractor1_subtractor_gate_1 : VerifiedSubtractor1 subtractor_gate_1 a_bus_subtractor_gate_1 b_bus_subtractor_gate_1 diff_bus_subtractor_gate_1 bin_subtractor_gate_1 bout_subtractor_gate_1 where
   proof := instIsSubtractor_subtractor_gate_1
 
+-- ============================================================
 -- COMPONENT: subtractor_hier_2
+--
+-- 2-bit subtractor using two's-complement trick:
+--     A − B = A + (~B) + (~Bin + 1)     (since ~Bin = NOT borrow-in, acts as +1 seed)
+-- The circuit feeds (~Bin, A[0..1], ~B[0..1]) into an adder_2 cell and
+-- inverts the carry-out to obtain Bout.
+-- ============================================================
 def subtractor_hier_2_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .igate false,
@@ -129,7 +172,11 @@ instance instIsSubtractor_subtractor_hier_2 : IsSubtractor subtractor_hier_2 2 a
 instance instVerifiedSubtractor2_subtractor_hier_2 : VerifiedSubtractor2 subtractor_hier_2 a_bus_subtractor_hier_2 b_bus_subtractor_hier_2 diff_bus_subtractor_hier_2 bin_subtractor_hier_2 bout_subtractor_hier_2 where
   proof := instIsSubtractor_subtractor_hier_2
 
+-- ============================================================
 -- COMPONENT: subtractor_hier_4
+-- 4-bit subtractor using the same two's-complement strategy as subtractor_hier_2,
+-- but scaled up: (~Bin, A[0..3], ~B[0..3]) are fed into an adder_4 cell.
+-- ============================================================
 def subtractor_hier_4_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .igate false,
@@ -197,6 +244,9 @@ def bout_subtractor_hier_4 : Fin 20 := ⟨19, by decide⟩
 @[simp] lemma ast_subtractor_hier_4_diff_3 (s : State subtractor_hier_4) (i : Fin 20) (hi : i.val = 17 := by decide) : evalExpr s (unrollDAG subtractor_hier_4 20 i) = (compute_adder_4 (!(s ⟨0, by decide⟩)) (s ⟨1, by decide⟩) (s ⟨4, by decide⟩) (s ⟨7, by decide⟩) (s ⟨10, by decide⟩) (!(s ⟨2, by decide⟩)) (!(s ⟨5, by decide⟩)) (!(s ⟨8, by decide⟩)) (!(s ⟨11, by decide⟩))).testBit 3 := by cases i; subst hi; rfl
 @[simp] lemma ast_subtractor_hier_4_bout (s : State subtractor_hier_4) (i : Fin 20) (hi : i.val = 19 := by decide) : evalExpr s (unrollDAG subtractor_hier_4 20 i) = !((compute_adder_4 (!(s ⟨0, by decide⟩)) (s ⟨1, by decide⟩) (s ⟨4, by decide⟩) (s ⟨7, by decide⟩) (s ⟨10, by decide⟩) (!(s ⟨2, by decide⟩)) (!(s ⟨5, by decide⟩)) (!(s ⟨8, by decide⟩)) (!(s ⟨11, by decide⟩))).testBit 4) := by cases i; subst hi; rfl
 
+-- KEY RESULT
+-- Theorem: subtractor_hier_4 satisfies IsSubtractor with n=4.
+-- Proof: 2^9 = 512 cases.
 instance instIsSubtractor_subtractor_hier_4 : IsSubtractor subtractor_hier_4 4 a_bus_subtractor_hier_4 b_bus_subtractor_hier_4 diff_bus_subtractor_hier_4 bin_subtractor_hier_4 bout_subtractor_hier_4 where
   widths_match := by decide
   inputs_are_valid := by intro i h; fin_cases h <;> rfl

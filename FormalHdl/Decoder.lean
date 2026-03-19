@@ -1,4 +1,15 @@
+-- FormalHDL — Verified Decoder Component
 -- Adam Friesz, Winter 2026
+--
+-- A single 3-to-8 decoder proved correct against `IsDecoder`:
+--
+--   decoder_3 : IsDecoder with n=3, 8 outputs
+--
+-- The decoder asserts exactly the output line whose index equals the
+-- 3-bit binary value on the selector bus.
+-- Correctness is stated as: bitsToNat s out_bus = 2^(bitsToNat s sel_bus),
+-- i.e., exactly one output bit is high and it is at the selector-encoded position.
+
 import FormalHdl.Defs
 namespace hdl.examples.decoder
 open hdl
@@ -6,7 +17,33 @@ set_option linter.style.longLine false
 set_option linter.style.whitespace false
 
 
+-- ============================================================
 -- COMPONENT: decoder_3
+--
+-- 3-to-8 decoder built from AND gates.
+-- Each output line k is the AND of the three selector literals
+-- (sel[i] if bit i of k is 1, else ~sel[i]).
+--
+-- Gate layout (22 gates):
+--   0, 2, 4   : igate   sel[0], sel[1], sel[2]
+--   1, 3, 5   : not_    ~sel[0], ~sel[1], ~sel[2]
+--   6         : and_    ~s0 & ~s1               (minterm prefix for outputs 0,1)
+--   7         : and_    (~s0 & ~s1) & ~s2       = out[0]  (sel=000)
+--   8         : and_    s0 & ~s1
+--   9         : and_    (s0 & ~s1) & ~s2        = out[1]  (sel=001)
+--   10        : and_    ~s0 & s1
+--   11        : and_    (~s0 & s1) & ~s2        = out[2]  (sel=010)
+--   12        : and_    s0 & s1
+--   13        : and_    (s0 & s1) & ~s2         = out[3]  (sel=011)
+--   14        : and_    ~s0 & ~s1
+--   15        : and_    (~s0 & ~s1) & s2        = out[4]  (sel=100)
+--   16        : and_    s0 & ~s1
+--   17        : and_    (s0 & ~s1) & s2         = out[5]  (sel=101)
+--   18        : and_    ~s0 & s1
+--   19        : and_    (~s0 & s1) & s2         = out[6]  (sel=110)
+--   20        : and_    s0 & s1
+--   21        : and_    (s0 & s1) & s2          = out[7]  (sel=111)
+-- ============================================================
 def decoder_3_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .not_ false,
