@@ -6,63 +6,63 @@ set_option linter.style.longLine false
 set_option linter.style.whitespace false
 
 
--- COMPONENT: counter_1
-def counter_1_gates : List Gate := [
+-- COMPONENT: up_counter_1
+def up_counter_1_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .not_ false,
   Gate.mk .and_ false,
   Gate.mk .dff false,
   Gate.mk (.adder_1 ⟨0, by decide⟩) false
 ]
-def counter_1_conns : List (List Nat) := [
+def up_counter_1_conns : List (List Nat) := [
   [],
   [0],
   [0, 1],
   [4],
   [0, 3, 2]
 ]
-def counter_1 : Circuit := { gates := counter_1_gates, wiring := mkWiring counter_1_gates counter_1_conns (by decide), is_dag := by decide }
-def q_bus_counter_1 : List (Fin counter_1.gates.length) := [⟨3, by decide⟩]
-def inc_counter_1 : Fin counter_1.gates.length := ⟨0, by decide⟩
+def up_counter_1 : Circuit := { gates := up_counter_1_gates, wiring := mkWiring up_counter_1_gates up_counter_1_conns (by decide), is_dag := by decide }
+def q_bus_up_counter_1 : List (Fin up_counter_1.gates.length) := [⟨3, by decide⟩]
+def inc_up_counter_1 : Fin up_counter_1.gates.length := ⟨0, by decide⟩
 
--- AST BOUNDARY LEMMAS & PROOF: counter_1
-@[simp] lemma ast_counter_1_inc (s : State counter_1) (i : Fin 5) (hi : i.val = 0 := by decide) : evalExpr s (unrollDAG counter_1 5 i) = s ⟨0, by decide⟩ := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_1_q_0 (s : State counter_1) (i : Fin 5) (hi : i.val = 3 := by decide) : evalExpr s (unrollDAG counter_1 5 i) = s ⟨3, by decide⟩ := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_1_zero (s : State counter_1) (i : Fin 5) (hi : i.val = 2 := by decide) : evalExpr s (unrollDAG counter_1 5 i) = (s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)) := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_1_next_q_0 (s : State counter_1) (i : Fin 5) (hi : i.val = 4 := by decide) : evalExpr s (unrollDAG counter_1 5 i) = (compute_adder_1 (s ⟨0, by decide⟩) (s ⟨3, by decide⟩) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)))).testBit 0 := by cases i; subst hi; rfl
-@[simp] lemma runCycle_counter_1_q_0 (s : State counter_1) (env : List Bool) : (runCycle counter_1 s env) ⟨3, by decide⟩ = evalCombinatorial counter_1 5 s ⟨4, by decide⟩ := by rfl
+-- AST BOUNDARY LEMMAS & PROOF: up_counter_1
+@[simp] lemma ast_up_counter_1_inc (s : State up_counter_1) (i : Fin 5) (hi : i.val = 0 := by decide) : evalExpr s (unrollDAG up_counter_1 5 i) = s ⟨0, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_1_q_0 (s : State up_counter_1) (i : Fin 5) (hi : i.val = 3 := by decide) : evalExpr s (unrollDAG up_counter_1 5 i) = s ⟨3, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_1_zero (s : State up_counter_1) (i : Fin 5) (hi : i.val = 2 := by decide) : evalExpr s (unrollDAG up_counter_1 5 i) = (s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)) := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_1_next_q_0 (s : State up_counter_1) (i : Fin 5) (hi : i.val = 4 := by decide) : evalExpr s (unrollDAG up_counter_1 5 i) = (compute_adder_1 (s ⟨0, by decide⟩) (s ⟨3, by decide⟩) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)))).testBit 0 := by cases i; subst hi; rfl
+@[simp] lemma runCycle_up_counter_1_q_0 (s : State up_counter_1) (env : List Bool) : (runCycle up_counter_1 s env) ⟨3, by decide⟩ = evalCombinatorial up_counter_1 5 s ⟨4, by decide⟩ := by rfl
 
-instance instIsCounter_counter_1 : IsCounter counter_1 1 q_bus_counter_1 inc_counter_1 where
+instance instIsUpCounter_up_counter_1 : IsUpCounter up_counter_1 1 q_bus_up_counter_1 inc_up_counter_1 where
   widths_match := by decide
   inputs_are_valid := by decide
   incr_on_high := by
     intro s env h_inc
-    have equiv (i : Fin 5) : evalCombinatorial counter_1 5 s i = evalExpr s (unrollDAG counter_1 5 i) := by fin_cases i <;> rfl
-    simp only [q_bus_counter_1, bitsToNat]
-    simp only [runCycle_counter_1_q_0]
+    have equiv (i : Fin 5) : evalCombinatorial up_counter_1 5 s i = evalExpr s (unrollDAG up_counter_1 5 i) := by fin_cases i <;> rfl
+    simp only [q_bus_up_counter_1, bitsToNat]
+    simp only [runCycle_up_counter_1_q_0]
     simp only [equiv]
-    simp only [ast_counter_1_next_q_0]
-    simp only [inc_counter_1] at h_inc
+    simp only [ast_up_counter_1_next_q_0]
+    simp only [inc_up_counter_1] at h_inc
     simp only [h_inc]
     generalize h_val_q_0 : s ⟨3, by decide⟩ = val_q_0
     cases val_q_0 <;> decide
   hold_on_low := by
     intro s env h_inc
-    have equiv (i : Fin 5) : evalCombinatorial counter_1 5 s i = evalExpr s (unrollDAG counter_1 5 i) := by fin_cases i <;> rfl
-    simp only [q_bus_counter_1, bitsToNat]
-    simp only [runCycle_counter_1_q_0]
+    have equiv (i : Fin 5) : evalCombinatorial up_counter_1 5 s i = evalExpr s (unrollDAG up_counter_1 5 i) := by fin_cases i <;> rfl
+    simp only [q_bus_up_counter_1, bitsToNat]
+    simp only [runCycle_up_counter_1_q_0]
     simp only [equiv]
-    simp only [ast_counter_1_next_q_0]
-    simp only [inc_counter_1] at h_inc
+    simp only [ast_up_counter_1_next_q_0]
+    simp only [inc_up_counter_1] at h_inc
     simp only [h_inc]
     generalize h_val_q_0 : s ⟨3, by decide⟩ = val_q_0
     cases val_q_0 <;> decide
 
-instance instVerifiedCounter1_counter_1 : VerifiedCounter1 counter_1 q_bus_counter_1 inc_counter_1 where
-  proof := instIsCounter_counter_1
+instance instVerifiedUpCounter1_up_counter_1 : VerifiedUpCounter1 up_counter_1 q_bus_up_counter_1 inc_up_counter_1 where
+  proof := instIsUpCounter_up_counter_1
 
--- COMPONENT: counter_2
-def counter_2_gates : List Gate := [
+-- COMPONENT: up_counter_2
+def up_counter_2_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .not_ false,
   Gate.mk .and_ false,
@@ -71,7 +71,7 @@ def counter_2_gates : List Gate := [
   Gate.mk (.adder_2 ⟨0, by decide⟩) false,
   Gate.mk (.adder_2 ⟨1, by decide⟩) false
 ]
-def counter_2_conns : List (List Nat) := [
+def up_counter_2_conns : List (List Nat) := [
   [],
   [0],
   [0, 1],
@@ -80,53 +80,53 @@ def counter_2_conns : List (List Nat) := [
   [0, 3, 4, 2, 2],
   [0, 3, 4, 2, 2]
 ]
-def counter_2 : Circuit := { gates := counter_2_gates, wiring := mkWiring counter_2_gates counter_2_conns (by decide), is_dag := by decide }
-def q_bus_counter_2 : List (Fin counter_2.gates.length) := [⟨3, by decide⟩, ⟨4, by decide⟩]
-def inc_counter_2 : Fin counter_2.gates.length := ⟨0, by decide⟩
+def up_counter_2 : Circuit := { gates := up_counter_2_gates, wiring := mkWiring up_counter_2_gates up_counter_2_conns (by decide), is_dag := by decide }
+def q_bus_up_counter_2 : List (Fin up_counter_2.gates.length) := [⟨3, by decide⟩, ⟨4, by decide⟩]
+def inc_up_counter_2 : Fin up_counter_2.gates.length := ⟨0, by decide⟩
 
--- AST BOUNDARY LEMMAS & PROOF: counter_2
-@[simp] lemma ast_counter_2_inc (s : State counter_2) (i : Fin 7) (hi : i.val = 0 := by decide) : evalExpr s (unrollDAG counter_2 7 i) = s ⟨0, by decide⟩ := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_2_q_0 (s : State counter_2) (i : Fin 7) (hi : i.val = 3 := by decide) : evalExpr s (unrollDAG counter_2 7 i) = s ⟨3, by decide⟩ := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_2_q_1 (s : State counter_2) (i : Fin 7) (hi : i.val = 4 := by decide) : evalExpr s (unrollDAG counter_2 7 i) = s ⟨4, by decide⟩ := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_2_zero (s : State counter_2) (i : Fin 7) (hi : i.val = 2 := by decide) : evalExpr s (unrollDAG counter_2 7 i) = (s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)) := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_2_next_q_0 (s : State counter_2) (i : Fin 7) (hi : i.val = 5 := by decide) : evalExpr s (unrollDAG counter_2 7 i) = (compute_adder_2 (s ⟨0, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)))).testBit 0 := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_2_next_q_1 (s : State counter_2) (i : Fin 7) (hi : i.val = 6 := by decide) : evalExpr s (unrollDAG counter_2 7 i) = (compute_adder_2 (s ⟨0, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)))).testBit 1 := by cases i; subst hi; rfl
-@[simp] lemma runCycle_counter_2_q_0 (s : State counter_2) (env : List Bool) : (runCycle counter_2 s env) ⟨3, by decide⟩ = evalCombinatorial counter_2 7 s ⟨5, by decide⟩ := by rfl
-@[simp] lemma runCycle_counter_2_q_1 (s : State counter_2) (env : List Bool) : (runCycle counter_2 s env) ⟨4, by decide⟩ = evalCombinatorial counter_2 7 s ⟨6, by decide⟩ := by rfl
+-- AST BOUNDARY LEMMAS & PROOF: up_counter_2
+@[simp] lemma ast_up_counter_2_inc (s : State up_counter_2) (i : Fin 7) (hi : i.val = 0 := by decide) : evalExpr s (unrollDAG up_counter_2 7 i) = s ⟨0, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_2_q_0 (s : State up_counter_2) (i : Fin 7) (hi : i.val = 3 := by decide) : evalExpr s (unrollDAG up_counter_2 7 i) = s ⟨3, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_2_q_1 (s : State up_counter_2) (i : Fin 7) (hi : i.val = 4 := by decide) : evalExpr s (unrollDAG up_counter_2 7 i) = s ⟨4, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_2_zero (s : State up_counter_2) (i : Fin 7) (hi : i.val = 2 := by decide) : evalExpr s (unrollDAG up_counter_2 7 i) = (s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)) := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_2_next_q_0 (s : State up_counter_2) (i : Fin 7) (hi : i.val = 5 := by decide) : evalExpr s (unrollDAG up_counter_2 7 i) = (compute_adder_2 (s ⟨0, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)))).testBit 0 := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_2_next_q_1 (s : State up_counter_2) (i : Fin 7) (hi : i.val = 6 := by decide) : evalExpr s (unrollDAG up_counter_2 7 i) = (compute_adder_2 (s ⟨0, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)))).testBit 1 := by cases i; subst hi; rfl
+@[simp] lemma runCycle_up_counter_2_q_0 (s : State up_counter_2) (env : List Bool) : (runCycle up_counter_2 s env) ⟨3, by decide⟩ = evalCombinatorial up_counter_2 7 s ⟨5, by decide⟩ := by rfl
+@[simp] lemma runCycle_up_counter_2_q_1 (s : State up_counter_2) (env : List Bool) : (runCycle up_counter_2 s env) ⟨4, by decide⟩ = evalCombinatorial up_counter_2 7 s ⟨6, by decide⟩ := by rfl
 
-instance instIsCounter_counter_2 : IsCounter counter_2 2 q_bus_counter_2 inc_counter_2 where
+instance instIsUpCounter_up_counter_2 : IsUpCounter up_counter_2 2 q_bus_up_counter_2 inc_up_counter_2 where
   widths_match := by decide
   inputs_are_valid := by decide
   incr_on_high := by
     intro s env h_inc
-    have equiv (i : Fin 7) : evalCombinatorial counter_2 7 s i = evalExpr s (unrollDAG counter_2 7 i) := by fin_cases i <;> rfl
-    simp only [q_bus_counter_2, bitsToNat]
-    simp only [runCycle_counter_2_q_0, runCycle_counter_2_q_1]
+    have equiv (i : Fin 7) : evalCombinatorial up_counter_2 7 s i = evalExpr s (unrollDAG up_counter_2 7 i) := by fin_cases i <;> rfl
+    simp only [q_bus_up_counter_2, bitsToNat]
+    simp only [runCycle_up_counter_2_q_0, runCycle_up_counter_2_q_1]
     simp only [equiv]
-    simp only [ast_counter_2_next_q_0, ast_counter_2_next_q_1]
-    simp only [inc_counter_2] at h_inc
+    simp only [ast_up_counter_2_next_q_0, ast_up_counter_2_next_q_1]
+    simp only [inc_up_counter_2] at h_inc
     simp only [h_inc]
     generalize h_val_q_0 : s ⟨3, by decide⟩ = val_q_0
     generalize h_val_q_1 : s ⟨4, by decide⟩ = val_q_1
     cases val_q_0 <;> cases val_q_1 <;> decide
   hold_on_low := by
     intro s env h_inc
-    have equiv (i : Fin 7) : evalCombinatorial counter_2 7 s i = evalExpr s (unrollDAG counter_2 7 i) := by fin_cases i <;> rfl
-    simp only [q_bus_counter_2, bitsToNat]
-    simp only [runCycle_counter_2_q_0, runCycle_counter_2_q_1]
+    have equiv (i : Fin 7) : evalCombinatorial up_counter_2 7 s i = evalExpr s (unrollDAG up_counter_2 7 i) := by fin_cases i <;> rfl
+    simp only [q_bus_up_counter_2, bitsToNat]
+    simp only [runCycle_up_counter_2_q_0, runCycle_up_counter_2_q_1]
     simp only [equiv]
-    simp only [ast_counter_2_next_q_0, ast_counter_2_next_q_1]
-    simp only [inc_counter_2] at h_inc
+    simp only [ast_up_counter_2_next_q_0, ast_up_counter_2_next_q_1]
+    simp only [inc_up_counter_2] at h_inc
     simp only [h_inc]
     generalize h_val_q_0 : s ⟨3, by decide⟩ = val_q_0
     generalize h_val_q_1 : s ⟨4, by decide⟩ = val_q_1
     cases val_q_0 <;> cases val_q_1 <;> decide
 
-instance instVerifiedCounter2_counter_2 : VerifiedCounter2 counter_2 q_bus_counter_2 inc_counter_2 where
-  proof := instIsCounter_counter_2
+instance instVerifiedUpCounter2_up_counter_2 : VerifiedUpCounter2 up_counter_2 q_bus_up_counter_2 inc_up_counter_2 where
+  proof := instIsUpCounter_up_counter_2
 
--- COMPONENT: counter_4
-def counter_4_gates : List Gate := [
+-- COMPONENT: up_counter_4
+def up_counter_4_gates : List Gate := [
   Gate.mk .igate false,
   Gate.mk .not_ false,
   Gate.mk .and_ false,
@@ -139,7 +139,7 @@ def counter_4_gates : List Gate := [
   Gate.mk (.adder_4 ⟨2, by decide⟩) false,
   Gate.mk (.adder_4 ⟨3, by decide⟩) false
 ]
-def counter_4_conns : List (List Nat) := [
+def up_counter_4_conns : List (List Nat) := [
   [],
   [0],
   [0, 1],
@@ -152,37 +152,37 @@ def counter_4_conns : List (List Nat) := [
   [0, 3, 4, 5, 6, 2, 2, 2, 2],
   [0, 3, 4, 5, 6, 2, 2, 2, 2]
 ]
-def counter_4 : Circuit := { gates := counter_4_gates, wiring := mkWiring counter_4_gates counter_4_conns (by decide), is_dag := by decide }
-def q_bus_counter_4 : List (Fin counter_4.gates.length) := [⟨3, by decide⟩, ⟨4, by decide⟩, ⟨5, by decide⟩, ⟨6, by decide⟩]
-def inc_counter_4 : Fin counter_4.gates.length := ⟨0, by decide⟩
+def up_counter_4 : Circuit := { gates := up_counter_4_gates, wiring := mkWiring up_counter_4_gates up_counter_4_conns (by decide), is_dag := by decide }
+def q_bus_up_counter_4 : List (Fin up_counter_4.gates.length) := [⟨3, by decide⟩, ⟨4, by decide⟩, ⟨5, by decide⟩, ⟨6, by decide⟩]
+def inc_up_counter_4 : Fin up_counter_4.gates.length := ⟨0, by decide⟩
 
--- AST BOUNDARY LEMMAS & PROOF: counter_4
-@[simp] lemma ast_counter_4_inc (s : State counter_4) (i : Fin 11) (hi : i.val = 0 := by decide) : evalExpr s (unrollDAG counter_4 11 i) = s ⟨0, by decide⟩ := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_4_q_0 (s : State counter_4) (i : Fin 11) (hi : i.val = 3 := by decide) : evalExpr s (unrollDAG counter_4 11 i) = s ⟨3, by decide⟩ := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_4_q_1 (s : State counter_4) (i : Fin 11) (hi : i.val = 4 := by decide) : evalExpr s (unrollDAG counter_4 11 i) = s ⟨4, by decide⟩ := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_4_q_2 (s : State counter_4) (i : Fin 11) (hi : i.val = 5 := by decide) : evalExpr s (unrollDAG counter_4 11 i) = s ⟨5, by decide⟩ := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_4_q_3 (s : State counter_4) (i : Fin 11) (hi : i.val = 6 := by decide) : evalExpr s (unrollDAG counter_4 11 i) = s ⟨6, by decide⟩ := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_4_zero (s : State counter_4) (i : Fin 11) (hi : i.val = 2 := by decide) : evalExpr s (unrollDAG counter_4 11 i) = (s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)) := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_4_next_q_0 (s : State counter_4) (i : Fin 11) (hi : i.val = 7 := by decide) : evalExpr s (unrollDAG counter_4 11 i) = (compute_adder_4 (s ⟨0, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (s ⟨6, by decide⟩) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)))).testBit 0 := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_4_next_q_1 (s : State counter_4) (i : Fin 11) (hi : i.val = 8 := by decide) : evalExpr s (unrollDAG counter_4 11 i) = (compute_adder_4 (s ⟨0, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (s ⟨6, by decide⟩) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)))).testBit 1 := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_4_next_q_2 (s : State counter_4) (i : Fin 11) (hi : i.val = 9 := by decide) : evalExpr s (unrollDAG counter_4 11 i) = (compute_adder_4 (s ⟨0, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (s ⟨6, by decide⟩) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)))).testBit 2 := by cases i; subst hi; rfl
-@[simp] lemma ast_counter_4_next_q_3 (s : State counter_4) (i : Fin 11) (hi : i.val = 10 := by decide) : evalExpr s (unrollDAG counter_4 11 i) = (compute_adder_4 (s ⟨0, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (s ⟨6, by decide⟩) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)))).testBit 3 := by cases i; subst hi; rfl
-@[simp] lemma runCycle_counter_4_q_0 (s : State counter_4) (env : List Bool) : (runCycle counter_4 s env) ⟨3, by decide⟩ = evalCombinatorial counter_4 11 s ⟨7, by decide⟩ := by rfl
-@[simp] lemma runCycle_counter_4_q_1 (s : State counter_4) (env : List Bool) : (runCycle counter_4 s env) ⟨4, by decide⟩ = evalCombinatorial counter_4 11 s ⟨8, by decide⟩ := by rfl
-@[simp] lemma runCycle_counter_4_q_2 (s : State counter_4) (env : List Bool) : (runCycle counter_4 s env) ⟨5, by decide⟩ = evalCombinatorial counter_4 11 s ⟨9, by decide⟩ := by rfl
-@[simp] lemma runCycle_counter_4_q_3 (s : State counter_4) (env : List Bool) : (runCycle counter_4 s env) ⟨6, by decide⟩ = evalCombinatorial counter_4 11 s ⟨10, by decide⟩ := by rfl
+-- AST BOUNDARY LEMMAS & PROOF: up_counter_4
+@[simp] lemma ast_up_counter_4_inc (s : State up_counter_4) (i : Fin 11) (hi : i.val = 0 := by decide) : evalExpr s (unrollDAG up_counter_4 11 i) = s ⟨0, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_4_q_0 (s : State up_counter_4) (i : Fin 11) (hi : i.val = 3 := by decide) : evalExpr s (unrollDAG up_counter_4 11 i) = s ⟨3, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_4_q_1 (s : State up_counter_4) (i : Fin 11) (hi : i.val = 4 := by decide) : evalExpr s (unrollDAG up_counter_4 11 i) = s ⟨4, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_4_q_2 (s : State up_counter_4) (i : Fin 11) (hi : i.val = 5 := by decide) : evalExpr s (unrollDAG up_counter_4 11 i) = s ⟨5, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_4_q_3 (s : State up_counter_4) (i : Fin 11) (hi : i.val = 6 := by decide) : evalExpr s (unrollDAG up_counter_4 11 i) = s ⟨6, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_4_zero (s : State up_counter_4) (i : Fin 11) (hi : i.val = 2 := by decide) : evalExpr s (unrollDAG up_counter_4 11 i) = (s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)) := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_4_next_q_0 (s : State up_counter_4) (i : Fin 11) (hi : i.val = 7 := by decide) : evalExpr s (unrollDAG up_counter_4 11 i) = (compute_adder_4 (s ⟨0, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (s ⟨6, by decide⟩) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)))).testBit 0 := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_4_next_q_1 (s : State up_counter_4) (i : Fin 11) (hi : i.val = 8 := by decide) : evalExpr s (unrollDAG up_counter_4 11 i) = (compute_adder_4 (s ⟨0, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (s ⟨6, by decide⟩) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)))).testBit 1 := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_4_next_q_2 (s : State up_counter_4) (i : Fin 11) (hi : i.val = 9 := by decide) : evalExpr s (unrollDAG up_counter_4 11 i) = (compute_adder_4 (s ⟨0, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (s ⟨6, by decide⟩) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)))).testBit 2 := by cases i; subst hi; rfl
+@[simp] lemma ast_up_counter_4_next_q_3 (s : State up_counter_4) (i : Fin 11) (hi : i.val = 10 := by decide) : evalExpr s (unrollDAG up_counter_4 11 i) = (compute_adder_4 (s ⟨0, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (s ⟨6, by decide⟩) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩)))).testBit 3 := by cases i; subst hi; rfl
+@[simp] lemma runCycle_up_counter_4_q_0 (s : State up_counter_4) (env : List Bool) : (runCycle up_counter_4 s env) ⟨3, by decide⟩ = evalCombinatorial up_counter_4 11 s ⟨7, by decide⟩ := by rfl
+@[simp] lemma runCycle_up_counter_4_q_1 (s : State up_counter_4) (env : List Bool) : (runCycle up_counter_4 s env) ⟨4, by decide⟩ = evalCombinatorial up_counter_4 11 s ⟨8, by decide⟩ := by rfl
+@[simp] lemma runCycle_up_counter_4_q_2 (s : State up_counter_4) (env : List Bool) : (runCycle up_counter_4 s env) ⟨5, by decide⟩ = evalCombinatorial up_counter_4 11 s ⟨9, by decide⟩ := by rfl
+@[simp] lemma runCycle_up_counter_4_q_3 (s : State up_counter_4) (env : List Bool) : (runCycle up_counter_4 s env) ⟨6, by decide⟩ = evalCombinatorial up_counter_4 11 s ⟨10, by decide⟩ := by rfl
 
-instance instIsCounter_counter_4 : IsCounter counter_4 4 q_bus_counter_4 inc_counter_4 where
+instance instIsUpCounter_up_counter_4 : IsUpCounter up_counter_4 4 q_bus_up_counter_4 inc_up_counter_4 where
   widths_match := by decide
   inputs_are_valid := by decide
   incr_on_high := by
     intro s env h_inc
-    have equiv (i : Fin 11) : evalCombinatorial counter_4 11 s i = evalExpr s (unrollDAG counter_4 11 i) := by fin_cases i <;> rfl
-    simp only [q_bus_counter_4, bitsToNat]
-    simp only [runCycle_counter_4_q_0, runCycle_counter_4_q_1, runCycle_counter_4_q_2, runCycle_counter_4_q_3]
+    have equiv (i : Fin 11) : evalCombinatorial up_counter_4 11 s i = evalExpr s (unrollDAG up_counter_4 11 i) := by fin_cases i <;> rfl
+    simp only [q_bus_up_counter_4, bitsToNat]
+    simp only [runCycle_up_counter_4_q_0, runCycle_up_counter_4_q_1, runCycle_up_counter_4_q_2, runCycle_up_counter_4_q_3]
     simp only [equiv]
-    simp only [ast_counter_4_next_q_0, ast_counter_4_next_q_1, ast_counter_4_next_q_2, ast_counter_4_next_q_3]
-    simp only [inc_counter_4] at h_inc
+    simp only [ast_up_counter_4_next_q_0, ast_up_counter_4_next_q_1, ast_up_counter_4_next_q_2, ast_up_counter_4_next_q_3]
+    simp only [inc_up_counter_4] at h_inc
     simp only [h_inc]
     generalize h_val_q_0 : s ⟨3, by decide⟩ = val_q_0
     generalize h_val_q_1 : s ⟨4, by decide⟩ = val_q_1
@@ -191,12 +191,12 @@ instance instIsCounter_counter_4 : IsCounter counter_4 4 q_bus_counter_4 inc_cou
     cases val_q_0 <;> cases val_q_1 <;> cases val_q_2 <;> cases val_q_3 <;> decide
   hold_on_low := by
     intro s env h_inc
-    have equiv (i : Fin 11) : evalCombinatorial counter_4 11 s i = evalExpr s (unrollDAG counter_4 11 i) := by fin_cases i <;> rfl
-    simp only [q_bus_counter_4, bitsToNat]
-    simp only [runCycle_counter_4_q_0, runCycle_counter_4_q_1, runCycle_counter_4_q_2, runCycle_counter_4_q_3]
+    have equiv (i : Fin 11) : evalCombinatorial up_counter_4 11 s i = evalExpr s (unrollDAG up_counter_4 11 i) := by fin_cases i <;> rfl
+    simp only [q_bus_up_counter_4, bitsToNat]
+    simp only [runCycle_up_counter_4_q_0, runCycle_up_counter_4_q_1, runCycle_up_counter_4_q_2, runCycle_up_counter_4_q_3]
     simp only [equiv]
-    simp only [ast_counter_4_next_q_0, ast_counter_4_next_q_1, ast_counter_4_next_q_2, ast_counter_4_next_q_3]
-    simp only [inc_counter_4] at h_inc
+    simp only [ast_up_counter_4_next_q_0, ast_up_counter_4_next_q_1, ast_up_counter_4_next_q_2, ast_up_counter_4_next_q_3]
+    simp only [inc_up_counter_4] at h_inc
     simp only [h_inc]
     generalize h_val_q_0 : s ⟨3, by decide⟩ = val_q_0
     generalize h_val_q_1 : s ⟨4, by decide⟩ = val_q_1
@@ -204,21 +204,256 @@ instance instIsCounter_counter_4 : IsCounter counter_4 4 q_bus_counter_4 inc_cou
     generalize h_val_q_3 : s ⟨6, by decide⟩ = val_q_3
     cases val_q_0 <;> cases val_q_1 <;> cases val_q_2 <;> cases val_q_3 <;> decide
 
-instance instVerifiedCounter4_counter_4 : VerifiedCounter4 counter_4 q_bus_counter_4 inc_counter_4 where
-  proof := instIsCounter_counter_4
+instance instVerifiedUpCounter4_up_counter_4 : VerifiedUpCounter4 up_counter_4 q_bus_up_counter_4 inc_up_counter_4 where
+  proof := instIsUpCounter_up_counter_4
 
-/-
-  Cycle by Cycle Simulation Example
--/
+-- COMPONENT: up_down_counter_4
+def up_down_counter_4_gates : List Gate := [
+  Gate.mk .igate false,
+  Gate.mk .igate false,
+  Gate.mk .dff false,
+  Gate.mk .dff false,
+  Gate.mk .dff false,
+  Gate.mk .dff false,
+  Gate.mk .not_ false,
+  Gate.mk .not_ false,
+  Gate.mk .and_ false,
+  Gate.mk .and_ false,
+  Gate.mk .or_ false,
+  Gate.mk .and_ false,
+  Gate.mk .and_ false,
+  Gate.mk .and_ false,
+  Gate.mk .and_ false,
+  Gate.mk (.adder_4 ⟨0, by decide⟩) false,
+  Gate.mk (.adder_4 ⟨1, by decide⟩) false,
+  Gate.mk (.adder_4 ⟨2, by decide⟩) false,
+  Gate.mk (.adder_4 ⟨3, by decide⟩) false
+]
+def up_down_counter_4_conns : List (List Nat) := [
+  [],
+  [],
+  [15],
+  [16],
+  [17],
+  [18],
+  [0],
+  [1],
+  [0, 7],
+  [1, 6],
+  [8, 9],
+  [9, 9],
+  [9, 9],
+  [9, 9],
+  [0, 6],
+  [14, 2, 3, 4, 5, 10, 11, 12, 13],
+  [14, 2, 3, 4, 5, 10, 11, 12, 13],
+  [14, 2, 3, 4, 5, 10, 11, 12, 13],
+  [14, 2, 3, 4, 5, 10, 11, 12, 13]
+]
+def up_down_counter_4 : Circuit := { gates := up_down_counter_4_gates, wiring := mkWiring up_down_counter_4_gates up_down_counter_4_conns (by decide), is_dag := by decide }
+def q_bus_up_down_counter_4 : List (Fin up_down_counter_4.gates.length) := [⟨2, by decide⟩, ⟨3, by decide⟩, ⟨4, by decide⟩, ⟨5, by decide⟩]
+def incr_up_down_counter_4 : Fin up_down_counter_4.gates.length := ⟨0, by decide⟩
+def decr_up_down_counter_4 : Fin up_down_counter_4.gates.length := ⟨1, by decide⟩
 
--- Sequence of inputs (e.g., 4 cycles of incrementing)
-def input_stimulus : List (List Bool) := [[true], [true], [true], [true], [false], [false]]
+-- AST BOUNDARY LEMMAS & PROOF: up_down_counter_4
+@[simp] lemma ast_up_down_counter_4_incr (s : State up_down_counter_4) (i : Fin 19) (hi : i.val = 0 := by decide) : evalExpr s (unrollDAG up_down_counter_4 19 i) = s ⟨0, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_4_decr (s : State up_down_counter_4) (i : Fin 19) (hi : i.val = 1 := by decide) : evalExpr s (unrollDAG up_down_counter_4 19 i) = s ⟨1, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_4_q_0 (s : State up_down_counter_4) (i : Fin 19) (hi : i.val = 2 := by decide) : evalExpr s (unrollDAG up_down_counter_4 19 i) = s ⟨2, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_4_q_1 (s : State up_down_counter_4) (i : Fin 19) (hi : i.val = 3 := by decide) : evalExpr s (unrollDAG up_down_counter_4 19 i) = s ⟨3, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_4_q_2 (s : State up_down_counter_4) (i : Fin 19) (hi : i.val = 4 := by decide) : evalExpr s (unrollDAG up_down_counter_4 19 i) = s ⟨4, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_4_q_3 (s : State up_down_counter_4) (i : Fin 19) (hi : i.val = 5 := by decide) : evalExpr s (unrollDAG up_down_counter_4 19 i) = s ⟨5, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_4_next_q_0 (s : State up_down_counter_4) (i : Fin 19) (hi : i.val = 15 := by decide) : evalExpr s (unrollDAG up_down_counter_4 19 i) = (compute_adder_4 ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) (s ⟨2, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (((s ⟨0, by decide⟩ && !(s ⟨1, by decide⟩)) || (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩))))).testBit 0 := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_4_next_q_1 (s : State up_down_counter_4) (i : Fin 19) (hi : i.val = 16 := by decide) : evalExpr s (unrollDAG up_down_counter_4 19 i) = (compute_adder_4 ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) (s ⟨2, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (((s ⟨0, by decide⟩ && !(s ⟨1, by decide⟩)) || (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩))))).testBit 1 := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_4_next_q_2 (s : State up_down_counter_4) (i : Fin 19) (hi : i.val = 17 := by decide) : evalExpr s (unrollDAG up_down_counter_4 19 i) = (compute_adder_4 ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) (s ⟨2, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (((s ⟨0, by decide⟩ && !(s ⟨1, by decide⟩)) || (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩))))).testBit 2 := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_4_next_q_3 (s : State up_down_counter_4) (i : Fin 19) (hi : i.val = 18 := by decide) : evalExpr s (unrollDAG up_down_counter_4 19 i) = (compute_adder_4 ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) (s ⟨2, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (((s ⟨0, by decide⟩ && !(s ⟨1, by decide⟩)) || (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩))))).testBit 3 := by cases i; subst hi; rfl
+@[simp] lemma runCycle_up_down_counter_4_q_0 (s : State up_down_counter_4) (env : List Bool) (idx : Fin 19) (h : idx.val = 2 := by decide) : (runCycle up_down_counter_4 s env) idx = evalCombinatorial up_down_counter_4 19 s ⟨15, by decide⟩ := by cases idx; subst h; rfl
+@[simp] lemma runCycle_up_down_counter_4_q_1 (s : State up_down_counter_4) (env : List Bool) (idx : Fin 19) (h : idx.val = 3 := by decide) : (runCycle up_down_counter_4 s env) idx = evalCombinatorial up_down_counter_4 19 s ⟨16, by decide⟩ := by cases idx; subst h; rfl
+@[simp] lemma runCycle_up_down_counter_4_q_2 (s : State up_down_counter_4) (env : List Bool) (idx : Fin 19) (h : idx.val = 4 := by decide) : (runCycle up_down_counter_4 s env) idx = evalCombinatorial up_down_counter_4 19 s ⟨17, by decide⟩ := by cases idx; subst h; rfl
+@[simp] lemma runCycle_up_down_counter_4_q_3 (s : State up_down_counter_4) (env : List Bool) (idx : Fin 19) (h : idx.val = 5 := by decide) : (runCycle up_down_counter_4 s env) idx = evalCombinatorial up_down_counter_4 19 s ⟨18, by decide⟩ := by cases idx; subst h; rfl
 
--- Generate the trace and extract the numeric values of the q_bus
--- expected value 0, 0, 1, 2, 3, 4
--- note that t0 corresponds to reset, so the input is not consumed until t1
-#eval (runCycles counter_4 (initState counter_4) input_stimulus).map (fun s =>
-  bitsToNat (evalCombinatorial counter_4 counter_4.gates.length s) q_bus_counter_4
-)
+instance instIsUpDownCounter_up_down_counter_4 : IsUpDownCounter up_down_counter_4 4 q_bus_up_down_counter_4 incr_up_down_counter_4 decr_up_down_counter_4 where
+  widths_match := by decide
+  inputs_are_valid := by decide
+  count_up := by
+    intro s env h_incr h_decr
+    have equiv (i : Fin 19) : evalCombinatorial up_down_counter_4 19 s i = evalExpr s (unrollDAG up_down_counter_4 19 i) := by fin_cases i <;> rfl
+    simp only [q_bus_up_down_counter_4, bitsToNat]
+    simp only [runCycle_up_down_counter_4_q_0, runCycle_up_down_counter_4_q_1, runCycle_up_down_counter_4_q_2, runCycle_up_down_counter_4_q_3]
+    simp only [equiv]
+    simp only [ast_up_down_counter_4_next_q_0, ast_up_down_counter_4_next_q_1, ast_up_down_counter_4_next_q_2, ast_up_down_counter_4_next_q_3]
+    change s ⟨0, by decide⟩ = true at h_incr
+    change s ⟨1, by decide⟩ = false at h_decr
+    simp only [h_incr, h_decr]
+    generalize h_val_q_0 : s ⟨2, by decide⟩ = val_q_0
+    generalize h_val_q_1 : s ⟨3, by decide⟩ = val_q_1
+    generalize h_val_q_2 : s ⟨4, by decide⟩ = val_q_2
+    generalize h_val_q_3 : s ⟨5, by decide⟩ = val_q_3
+    cases val_q_0 <;> cases val_q_1 <;> cases val_q_2 <;> cases val_q_3 <;> decide
+  count_down := by
+    intro s env h_incr h_decr
+    have equiv (i : Fin 19) : evalCombinatorial up_down_counter_4 19 s i = evalExpr s (unrollDAG up_down_counter_4 19 i) := by fin_cases i <;> rfl
+    simp only [q_bus_up_down_counter_4, bitsToNat]
+    simp only [runCycle_up_down_counter_4_q_0, runCycle_up_down_counter_4_q_1, runCycle_up_down_counter_4_q_2, runCycle_up_down_counter_4_q_3]
+    simp only [equiv]
+    simp only [ast_up_down_counter_4_next_q_0, ast_up_down_counter_4_next_q_1, ast_up_down_counter_4_next_q_2, ast_up_down_counter_4_next_q_3]
+    change s ⟨0, by decide⟩ = false at h_incr
+    change s ⟨1, by decide⟩ = true at h_decr
+    simp only [h_incr, h_decr]
+    generalize h_val_q_0 : s ⟨2, by decide⟩ = val_q_0
+    generalize h_val_q_1 : s ⟨3, by decide⟩ = val_q_1
+    generalize h_val_q_2 : s ⟨4, by decide⟩ = val_q_2
+    generalize h_val_q_3 : s ⟨5, by decide⟩ = val_q_3
+    cases val_q_0 <;> cases val_q_1 <;> cases val_q_2 <;> cases val_q_3 <;> decide
+  hold_on_invalid := by
+    intro s env h_eq
+    have equiv (i : Fin 19) : evalCombinatorial up_down_counter_4 19 s i = evalExpr s (unrollDAG up_down_counter_4 19 i) := by fin_cases i <;> rfl
+    simp only [q_bus_up_down_counter_4, bitsToNat]
+    simp only [runCycle_up_down_counter_4_q_0, runCycle_up_down_counter_4_q_1, runCycle_up_down_counter_4_q_2, runCycle_up_down_counter_4_q_3]
+    simp only [equiv]
+    simp only [ast_up_down_counter_4_next_q_0, ast_up_down_counter_4_next_q_1, ast_up_down_counter_4_next_q_2, ast_up_down_counter_4_next_q_3]
+    change s ⟨0, by decide⟩ = s ⟨1, by decide⟩ at h_eq
+    generalize h_in : s ⟨1, by decide⟩ = val_in
+    rw [h_in] at h_eq
+    simp only [h_eq]
+    generalize h_val_q_0 : s ⟨2, by decide⟩ = val_q_0
+    generalize h_val_q_1 : s ⟨3, by decide⟩ = val_q_1
+    generalize h_val_q_2 : s ⟨4, by decide⟩ = val_q_2
+    generalize h_val_q_3 : s ⟨5, by decide⟩ = val_q_3
+    cases val_in <;> cases val_q_0 <;> cases val_q_1 <;> cases val_q_2 <;> cases val_q_3 <;> decide
+
+instance instVerifiedUpDownCounter4_up_down_counter_4 : VerifiedUpDownCounter4 up_down_counter_4 q_bus_up_down_counter_4 incr_up_down_counter_4 decr_up_down_counter_4 where
+  proof := instIsUpDownCounter_up_down_counter_4
+
+-- COMPONENT: up_down_counter_5
+def up_down_counter_5_gates : List Gate := [
+  Gate.mk .igate false,
+  Gate.mk .igate false,
+  Gate.mk .dff false,
+  Gate.mk .dff false,
+  Gate.mk .dff false,
+  Gate.mk .dff false,
+  Gate.mk .dff false,
+  Gate.mk .not_ false,
+  Gate.mk .not_ false,
+  Gate.mk .and_ false,
+  Gate.mk .and_ false,
+  Gate.mk .or_ false,
+  Gate.mk .and_ false,
+  Gate.mk .and_ false,
+  Gate.mk .and_ false,
+  Gate.mk .and_ false,
+  Gate.mk .and_ false,
+  Gate.mk (.adder_4 ⟨0, by decide⟩) false,
+  Gate.mk (.adder_4 ⟨1, by decide⟩) false,
+  Gate.mk (.adder_4 ⟨2, by decide⟩) false,
+  Gate.mk (.adder_4 ⟨3, by decide⟩) false,
+  Gate.mk (.adder_4 ⟨4, by decide⟩) false,
+  Gate.mk (.adder_1 ⟨0, by decide⟩) false
+]
+def up_down_counter_5_conns : List (List Nat) := [
+  [],
+  [],
+  [17],
+  [18],
+  [19],
+  [20],
+  [22],
+  [0],
+  [1],
+  [0, 8],
+  [1, 7],
+  [9, 10],
+  [10, 10],
+  [10, 10],
+  [10, 10],
+  [10, 10],
+  [0, 7],
+  [16, 2, 3, 4, 5, 11, 12, 13, 14],
+  [16, 2, 3, 4, 5, 11, 12, 13, 14],
+  [16, 2, 3, 4, 5, 11, 12, 13, 14],
+  [16, 2, 3, 4, 5, 11, 12, 13, 14],
+  [16, 2, 3, 4, 5, 11, 12, 13, 14],
+  [21, 6, 15]
+]
+def up_down_counter_5 : Circuit := { gates := up_down_counter_5_gates, wiring := mkWiring up_down_counter_5_gates up_down_counter_5_conns (by decide), is_dag := by decide }
+def q_bus_up_down_counter_5 : List (Fin up_down_counter_5.gates.length) := [⟨2, by decide⟩, ⟨3, by decide⟩, ⟨4, by decide⟩, ⟨5, by decide⟩, ⟨6, by decide⟩]
+def incr_up_down_counter_5 : Fin up_down_counter_5.gates.length := ⟨0, by decide⟩
+def decr_up_down_counter_5 : Fin up_down_counter_5.gates.length := ⟨1, by decide⟩
+
+-- AST BOUNDARY LEMMAS & PROOF: up_down_counter_5
+@[simp] lemma ast_up_down_counter_5_incr (s : State up_down_counter_5) (i : Fin 23) (hi : i.val = 0 := by decide) : evalExpr s (unrollDAG up_down_counter_5 23 i) = s ⟨0, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_5_decr (s : State up_down_counter_5) (i : Fin 23) (hi : i.val = 1 := by decide) : evalExpr s (unrollDAG up_down_counter_5 23 i) = s ⟨1, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_5_q_0 (s : State up_down_counter_5) (i : Fin 23) (hi : i.val = 2 := by decide) : evalExpr s (unrollDAG up_down_counter_5 23 i) = s ⟨2, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_5_q_1 (s : State up_down_counter_5) (i : Fin 23) (hi : i.val = 3 := by decide) : evalExpr s (unrollDAG up_down_counter_5 23 i) = s ⟨3, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_5_q_2 (s : State up_down_counter_5) (i : Fin 23) (hi : i.val = 4 := by decide) : evalExpr s (unrollDAG up_down_counter_5 23 i) = s ⟨4, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_5_q_3 (s : State up_down_counter_5) (i : Fin 23) (hi : i.val = 5 := by decide) : evalExpr s (unrollDAG up_down_counter_5 23 i) = s ⟨5, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_5_q_4 (s : State up_down_counter_5) (i : Fin 23) (hi : i.val = 6 := by decide) : evalExpr s (unrollDAG up_down_counter_5 23 i) = s ⟨6, by decide⟩ := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_5_next_q_0 (s : State up_down_counter_5) (i : Fin 23) (hi : i.val = 17 := by decide) : evalExpr s (unrollDAG up_down_counter_5 23 i) = (compute_adder_4 ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) (s ⟨2, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (((s ⟨0, by decide⟩ && !(s ⟨1, by decide⟩)) || (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩))))).testBit 0 := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_5_next_q_1 (s : State up_down_counter_5) (i : Fin 23) (hi : i.val = 18 := by decide) : evalExpr s (unrollDAG up_down_counter_5 23 i) = (compute_adder_4 ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) (s ⟨2, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (((s ⟨0, by decide⟩ && !(s ⟨1, by decide⟩)) || (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩))))).testBit 1 := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_5_next_q_2 (s : State up_down_counter_5) (i : Fin 23) (hi : i.val = 19 := by decide) : evalExpr s (unrollDAG up_down_counter_5 23 i) = (compute_adder_4 ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) (s ⟨2, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (((s ⟨0, by decide⟩ && !(s ⟨1, by decide⟩)) || (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩))))).testBit 2 := by cases i; subst hi; rfl
+@[simp] lemma ast_up_down_counter_5_next_q_3 (s : State up_down_counter_5) (i : Fin 23) (hi : i.val = 20 := by decide) : evalExpr s (unrollDAG up_down_counter_5 23 i) = (compute_adder_4 ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) (s ⟨2, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (((s ⟨0, by decide⟩ && !(s ⟨1, by decide⟩)) || (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩))))).testBit 3 := by cases i; subst hi; rfl
+set_option maxHeartbeats 1000000 in -- takes a while to run
+  @[simp] lemma ast_up_down_counter_5_next_q_4 (s : State up_down_counter_5) (i : Fin 23) (hi : i.val = 22 := by decide) : evalExpr s (unrollDAG up_down_counter_5 23 i) = (compute_adder_1 ((compute_adder_4 ((s ⟨0, by decide⟩ && !(s ⟨0, by decide⟩))) (s ⟨2, by decide⟩) (s ⟨3, by decide⟩) (s ⟨4, by decide⟩) (s ⟨5, by decide⟩) (((s ⟨0, by decide⟩ && !(s ⟨1, by decide⟩)) || (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)))) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩))))).testBit 4) (s ⟨6, by decide⟩) (((s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩)) && (s ⟨1, by decide⟩ && !(s ⟨0, by decide⟩))))).testBit 0 := by cases i; subst hi; rfl
+@[simp] lemma runCycle_up_down_counter_5_q_0 (s : State up_down_counter_5) (env : List Bool) (idx : Fin 23) (h : idx.val = 2 := by decide) : (runCycle up_down_counter_5 s env) idx = evalCombinatorial up_down_counter_5 23 s ⟨17, by decide⟩ := by cases idx; subst h; rfl
+@[simp] lemma runCycle_up_down_counter_5_q_1 (s : State up_down_counter_5) (env : List Bool) (idx : Fin 23) (h : idx.val = 3 := by decide) : (runCycle up_down_counter_5 s env) idx = evalCombinatorial up_down_counter_5 23 s ⟨18, by decide⟩ := by cases idx; subst h; rfl
+@[simp] lemma runCycle_up_down_counter_5_q_2 (s : State up_down_counter_5) (env : List Bool) (idx : Fin 23) (h : idx.val = 4 := by decide) : (runCycle up_down_counter_5 s env) idx = evalCombinatorial up_down_counter_5 23 s ⟨19, by decide⟩ := by cases idx; subst h; rfl
+@[simp] lemma runCycle_up_down_counter_5_q_3 (s : State up_down_counter_5) (env : List Bool) (idx : Fin 23) (h : idx.val = 5 := by decide) : (runCycle up_down_counter_5 s env) idx = evalCombinatorial up_down_counter_5 23 s ⟨20, by decide⟩ := by cases idx; subst h; rfl
+@[simp] lemma runCycle_up_down_counter_5_q_4 (s : State up_down_counter_5) (env : List Bool) (idx : Fin 23) (h : idx.val = 6 := by decide) : (runCycle up_down_counter_5 s env) idx = evalCombinatorial up_down_counter_5 23 s ⟨22, by decide⟩ := by cases idx; subst h; rfl
+
+instance instIsUpDownCounter_up_down_counter_5 : IsUpDownCounter up_down_counter_5 5 q_bus_up_down_counter_5 incr_up_down_counter_5 decr_up_down_counter_5 where
+  widths_match := by decide
+  inputs_are_valid := by decide
+  count_up := by
+    intro s env h_incr h_decr
+    have equiv (i : Fin 23) : evalCombinatorial up_down_counter_5 23 s i = evalExpr s (unrollDAG up_down_counter_5 23 i) := by fin_cases i <;> rfl
+    simp only [q_bus_up_down_counter_5, bitsToNat]
+    simp only [runCycle_up_down_counter_5_q_0, runCycle_up_down_counter_5_q_1, runCycle_up_down_counter_5_q_2, runCycle_up_down_counter_5_q_3, runCycle_up_down_counter_5_q_4]
+    simp only [equiv]
+    simp only [ast_up_down_counter_5_next_q_0, ast_up_down_counter_5_next_q_1, ast_up_down_counter_5_next_q_2, ast_up_down_counter_5_next_q_3, ast_up_down_counter_5_next_q_4]
+    change s ⟨0, by decide⟩ = true at h_incr
+    change s ⟨1, by decide⟩ = false at h_decr
+    simp only [h_incr, h_decr]
+    generalize h_val_q_0 : s ⟨2, by decide⟩ = val_q_0
+    generalize h_val_q_1 : s ⟨3, by decide⟩ = val_q_1
+    generalize h_val_q_2 : s ⟨4, by decide⟩ = val_q_2
+    generalize h_val_q_3 : s ⟨5, by decide⟩ = val_q_3
+    generalize h_val_q_4 : s ⟨6, by decide⟩ = val_q_4
+    cases val_q_0 <;> cases val_q_1 <;> cases val_q_2 <;> cases val_q_3 <;> cases val_q_4 <;> decide
+  count_down := by
+    intro s env h_incr h_decr
+    have equiv (i : Fin 23) : evalCombinatorial up_down_counter_5 23 s i = evalExpr s (unrollDAG up_down_counter_5 23 i) := by fin_cases i <;> rfl
+    simp only [q_bus_up_down_counter_5, bitsToNat]
+    simp only [runCycle_up_down_counter_5_q_0, runCycle_up_down_counter_5_q_1, runCycle_up_down_counter_5_q_2, runCycle_up_down_counter_5_q_3, runCycle_up_down_counter_5_q_4]
+    simp only [equiv]
+    simp only [ast_up_down_counter_5_next_q_0, ast_up_down_counter_5_next_q_1, ast_up_down_counter_5_next_q_2, ast_up_down_counter_5_next_q_3, ast_up_down_counter_5_next_q_4]
+    change s ⟨0, by decide⟩ = false at h_incr
+    change s ⟨1, by decide⟩ = true at h_decr
+    simp only [h_incr, h_decr]
+    generalize h_val_q_0 : s ⟨2, by decide⟩ = val_q_0
+    generalize h_val_q_1 : s ⟨3, by decide⟩ = val_q_1
+    generalize h_val_q_2 : s ⟨4, by decide⟩ = val_q_2
+    generalize h_val_q_3 : s ⟨5, by decide⟩ = val_q_3
+    generalize h_val_q_4 : s ⟨6, by decide⟩ = val_q_4
+    cases val_q_0 <;> cases val_q_1 <;> cases val_q_2 <;> cases val_q_3 <;> cases val_q_4 <;> decide
+  hold_on_invalid := by
+    intro s env h_eq
+    have equiv (i : Fin 23) : evalCombinatorial up_down_counter_5 23 s i = evalExpr s (unrollDAG up_down_counter_5 23 i) := by fin_cases i <;> rfl
+    simp only [q_bus_up_down_counter_5, bitsToNat]
+    simp only [runCycle_up_down_counter_5_q_0, runCycle_up_down_counter_5_q_1, runCycle_up_down_counter_5_q_2, runCycle_up_down_counter_5_q_3, runCycle_up_down_counter_5_q_4]
+    simp only [equiv]
+    simp only [ast_up_down_counter_5_next_q_0, ast_up_down_counter_5_next_q_1, ast_up_down_counter_5_next_q_2, ast_up_down_counter_5_next_q_3, ast_up_down_counter_5_next_q_4]
+    change s ⟨0, by decide⟩ = s ⟨1, by decide⟩ at h_eq
+    generalize h_in : s ⟨1, by decide⟩ = val_in
+    rw [h_in] at h_eq
+    simp only [h_eq]
+    generalize h_val_q_0 : s ⟨2, by decide⟩ = val_q_0
+    generalize h_val_q_1 : s ⟨3, by decide⟩ = val_q_1
+    generalize h_val_q_2 : s ⟨4, by decide⟩ = val_q_2
+    generalize h_val_q_3 : s ⟨5, by decide⟩ = val_q_3
+    generalize h_val_q_4 : s ⟨6, by decide⟩ = val_q_4
+    cases val_in <;> cases val_q_0 <;> cases val_q_1 <;> cases val_q_2 <;> cases val_q_3 <;> cases val_q_4 <;> decide
+
+instance instVerifiedUpDownCounter5_up_down_counter_5 : VerifiedUpDownCounter5 up_down_counter_5 q_bus_up_down_counter_5 incr_up_down_counter_5 decr_up_down_counter_5 where
+  proof := instIsUpDownCounter_up_down_counter_5
 
 end hdl.examples.counter

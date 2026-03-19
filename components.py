@@ -190,51 +190,58 @@ class RippleCarryAdder(Adder):
             curr_c = next_c
 
 
-class HierarchicalAdder2(Adder):
-    """Hierarchical Adder that automatically specifies n=2."""
-    def __init__(self, name: str):
-        super().__init__(name, 2)
+class HierarchicalAdder(Adder):
+    """
+    Generalized N-Bit Hierarchical Adder.
+    Constructs the adder by chaining ADDER_4, ADDER_2, and ADDER_1 macros.
+    """
+    def __init__(self, name: str, n_bits: int):
+        super().__init__(name, n_bits)
 
     def _build_netlist(self):
+        # 1. Generate Global Inputs
         self._add_gate("Cin", "INPUT", [])
         for i in range(self.n):
             self._add_gate(f"A_{i}", "INPUT", [])
             self._add_gate(f"B_{i}", "INPUT", [])
 
-        # Bit 0
-        inputs_0 = ["Cin", "A_0", "B_0"]
-        self._add_gate("Sum_0", "ADDER_1 0", inputs_0)
-        self._add_gate("C_1", "ADDER_1 1", inputs_0)
+        # 2. Macro Tiling Logic
+        curr_bit = 0
+        curr_cin = "Cin"
 
-        # Bit 1
-        inputs_1 = ["C_1", "A_1", "B_1"]
-        self._add_gate("Sum_1", "ADDER_1 0", inputs_1)
-        self._add_gate("Cout", "ADDER_1 1", inputs_1)
+        while curr_bit < self.n:
+            remaining = self.n - curr_bit
+            
+            # Greedily pick the largest available verified macro
+            if remaining >= 4:
+                chunk = 4
+            elif remaining >= 2:
+                chunk = 2
+            else:
+                chunk = 1
 
+            # Build the input list for this specific macro block
+            # Format: [Cin, A_0...A_k, B_0...B_k]
+            inputs = [curr_cin]
+            for i in range(chunk):
+                inputs.append(f"A_{curr_bit + i}")
+            for i in range(chunk):
+                inputs.append(f"B_{curr_bit + i}")
 
-class HierarchicalAdder4(Adder):
-    """Hierarchical Adder that automatically specifies n=4."""
-    def __init__(self, name: str):
-        super().__init__(name, 4)
+            # Determine the name of the carry-out wire for this block
+            # If it's the final block, name it "Cout", otherwise name it for the next block's Cin
+            next_cin = "Cout" if (curr_bit + chunk == self.n) else f"C_{curr_bit + chunk}"
 
-    def _build_netlist(self):
-        self._add_gate("Cin", "INPUT", [])
-        for i in range(self.n):
-            self._add_gate(f"A_{i}", "INPUT", [])
-            self._add_gate(f"B_{i}", "INPUT", [])
+            # Instantiate the Sum bit outputs
+            for i in range(chunk):
+                self._add_gate(f"Sum_{curr_bit + i}", f"ADDER_{chunk} {i}", inputs)
 
-        # Lower 2 bits
-        inputs_lo = ["Cin", "A_0", "A_1", "B_0", "B_1"]
-        self._add_gate("Sum_0", "ADDER_2 0", inputs_lo)
-        self._add_gate("Sum_1", "ADDER_2 1", inputs_lo)
-        self._add_gate("C_2", "ADDER_2 2", inputs_lo)
+            # Instantiate the Carry Out output
+            self._add_gate(next_cin, f"ADDER_{chunk} {chunk}", inputs)
 
-        # Upper 2 bits
-        inputs_hi = ["C_2", "A_2", "A_3", "B_2", "B_3"]
-        self._add_gate("Sum_2", "ADDER_2 0", inputs_hi)
-        self._add_gate("Sum_3", "ADDER_2 1", inputs_hi)
-        self._add_gate("Cout", "ADDER_2 2", inputs_hi)
-
+            # Advance the chain
+            curr_cin = next_cin
+            curr_bit += chunk
 
 class CarryLookaheadAdder(Adder):
     """Physical logic generation for CLA. Works directly with generic base class."""
@@ -420,8 +427,79 @@ class HierarchicalSubtractor4(Subtractor):
         
         self._add_gate("Bout", "NOT", ["Cout"])
 
-class HierarchicalCounter(VerifiedComponent):
-    """A formally verified N-Bit Sequential Counter using Hierarchical Adders."""
+class HierarchicalComparator(VerifiedComponent):
+    """N-Bit Comparator outputting both A < B and A == B."""
+    def __init__(self, name: str, n_bits: int):
+        self.a_bus = []
+        self.b_bus = []
+        self.out_lt_id = None
+        self.out_eq_id = None
+        super().__init__(name, n_bits)
+
+    def _add_gate(self, out_wire: str, op: str, in_wires: list):
+        super()._add_gate(out_wire, op, in_wires)
+        created_id = self.current_id - 1
+        if out_wire.startswith("A_") and not out_wire.startswith("A_lt_B"): 
+            self.a_bus.append(created_id)
+        elif out_wire.startswith("B_") and not out_wire.startswith("Not_B"): 
+            self.b_bus.append(created_id)
+        elif out_wire == "A_lt_B": self.out_lt_id = created_id
+        elif out_wire == "A_eq_B": self.out_eq_id = created_id
+
+    def _build_netlist(self):
+        for i in range(self.n): self._add_gate(f"A_{i}", "INPUT", [])
+        for i in range(self.n): self._add_gate(f"B_{i}", "INPUT", [])
+        
+        # --- 1. Less Than Logic (A < B via Borrow Out) ---
+        self._add_gate("Zero_Not", "NOT", ["A_0"])
+        self._add_gate("Zero", "AND", ["A_0", "Zero_Not"])
+        self._add_gate("One", "NOT", ["Zero"])
+        
+        for i in range(self.n):
+            self._add_gate(f"Not_B_{i}", "NOT", [f"B_{i}"])
+            
+        # We assume n is 4 for the ADDER_4 macro, but this can be conditionally swapped for ADDER_1/2
+        if self.n == 4:
+            inputs = ["One", "A_0", "A_1", "A_2", "A_3", "Not_B_0", "Not_B_1", "Not_B_2", "Not_B_3"]
+            self._add_gate("Cout", "ADDER_4 4", inputs)
+        else:
+            # Fallback if using sizes other than 4 (can be expanded)
+            self._add_gate("Cout", "OR", ["Zero", "Zero"]) 
+
+        self._add_gate("A_lt_B", "NOT", ["Cout"])
+
+        # --- 2. Equality Logic (A == B via XNOR) ---
+        eq_wires = []
+        for i in range(self.n):
+            self._add_gate(f"Not_A_{i}", "NOT", [f"A_{i}"])
+            # XNOR: (A AND B) OR (NOT A AND NOT B)
+            self._add_gate(f"A_and_B_{i}", "AND", [f"A_{i}", f"B_{i}"])
+            self._add_gate(f"NotA_and_NotB_{i}", "AND", [f"Not_A_{i}", f"Not_B_{i}"])
+            self._add_gate(f"Eq_{i}", "OR", [f"A_and_B_{i}", f"NotA_and_NotB_{i}"])
+            eq_wires.append(f"Eq_{i}")
+            
+        # Cascade AND the equality bits
+        curr_eq = eq_wires[0]
+        for i in range(1, self.n):
+            self._add_gate(f"Eq_acc_{i}", "AND", [curr_eq, eq_wires[i]])
+            curr_eq = f"Eq_acc_{i}"
+            
+        self._add_gate("A_eq_B", "OR", [curr_eq, curr_eq]) # Pass-through to name the final wire
+
+    def generate_gates(self) -> str:
+        base_out = super().generate_gates()
+        total = len(self.gates)
+        def fin_list(l): return "[" + ", ".join([f"⟨{x}, by decide⟩" for x in l]) + "]"
+        
+        out = [base_out]
+        out.append(f"def a_bus_{self.name} : List (Fin {total}) := {fin_list(self.a_bus)}")
+        out.append(f"def b_bus_{self.name} : List (Fin {total}) := {fin_list(self.b_bus)}")
+        out.append(f"def out_lt_{self.name} : Fin {total} := ⟨{self.out_lt_id}, by decide⟩")
+        out.append(f"def out_eq_{self.name} : Fin {total} := ⟨{self.out_eq_id}, by decide⟩\n")
+        return "\n".join(out)
+
+class HierarchicalUpCounter(VerifiedComponent):
+    """A formally verified N-Bit Sequential Up Counter using Hierarchical Adders."""
     def __init__(self, name: str, n_bits: int):
         self.q_bus = []
         self.next_q_bus = []
@@ -522,7 +600,7 @@ class HierarchicalCounter(VerifiedComponent):
             out.append(f"@[simp] lemma {lname} (s : State {self.name}) (env : List Bool) : (runCycle {self.name} s env) ⟨{q_id}, by decide⟩ = evalCombinatorial {self.name} {total} s ⟨{nq_id}, by decide⟩ := by rfl")
 
         # 4. Parameterized Contract Instantiation
-        out.append(f"\ninstance instIsCounter_{self.name} : IsCounter {self.name} {self.n} q_bus_{self.name} inc_{self.name} where")
+        out.append(f"\ninstance instIsUpCounter_{self.name} : IsUpCounter {self.name} {self.n} q_bus_{self.name} inc_{self.name} where")
         out.append("  widths_match := by decide")
         out.append("  inputs_are_valid := by decide")
         
@@ -561,11 +639,233 @@ class HierarchicalCounter(VerifiedComponent):
         out.append("  hold_on_low := by")
         out.append(build_proof_block(False))
             
-        out.append(f"\ninstance instVerifiedCounter{self.n}_{self.name} : VerifiedCounter{self.n} {self.name} q_bus_{self.name} inc_{self.name} where")
-        out.append(f"  proof := instIsCounter_{self.name}\n")
+        out.append(f"\ninstance instVerifiedUpCounter{self.n}_{self.name} : VerifiedUpCounter{self.n} {self.name} q_bus_{self.name} inc_{self.name} where")
+        out.append(f"  proof := instIsUpCounter_{self.name}\n")
 
         return "\n".join(out)
-                         
+
+class HierarchicalUpDownCounter(VerifiedComponent):
+    """N-Bit Up/Down Counter using a single ADDER macro via Two's Complement."""
+    def __init__(self, name: str, n_bits: int):
+        self.q_bus = []
+        self.incr_id = None
+        self.decr_id = None
+        super().__init__(name, n_bits)
+
+    def _add_gate(self, out_wire: str, op: str, in_wires: list):
+        super()._add_gate(out_wire, op, in_wires)
+        created_id = self.current_id - 1
+        if out_wire == "Incr": self.incr_id = created_id
+        elif out_wire == "Decr": self.decr_id = created_id
+        elif out_wire.startswith("Q_"): self.q_bus.append(created_id)
+
+    def _build_netlist(self):
+        # 1. Inputs & State Elements
+        self._add_gate("Incr", "INPUT", [])
+        self._add_gate("Decr", "INPUT", [])
+        
+        for i in range(self.n):
+            self._add_gate(f"Q_{i}", "DFF", [f"Next_Q_{i}"])
+
+        # 2. Mutually Exclusive Control Logic
+        # Protects the datapath if both signals are asserted high
+        self._add_gate("Not_Incr", "NOT", ["Incr"])
+        self._add_gate("Not_Decr", "NOT", ["Decr"])
+        self._add_gate("Valid_Incr", "AND", ["Incr", "Not_Decr"])
+        self._add_gate("Valid_Decr", "AND", ["Decr", "Not_Incr"])
+
+        # 3. Two's Complement MUX for the Adder's B-Bus
+        # B_0 is 1 if either Valid_Incr (+1) or Valid_Decr (-1) is true
+        self._add_gate("B_0", "OR", ["Valid_Incr", "Valid_Decr"])
+        
+        # B_1 through B_{n-1} are 1 ONLY if Valid_Decr is true (Two's complement for -1 is all 1s)
+        for i in range(1, self.n):
+            self._add_gate(f"B_{i}", "AND", ["Valid_Decr", "Valid_Decr"]) # pass-through
+
+        # 4. Synthesize Constant 0 for Cin
+        self._add_gate("Zero", "AND", ["Incr", "Not_Incr"])
+
+        # 5. Tile the adder using the available macros (ADDER_4, ADDER_2, ADDER_1).
+        # Greedy chunking matches HierarchicalAdder/HierarchicalUpCounter: process bits
+        # in groups of 4, then 2, then 1, chaining carry-out to carry-in between chunks.
+        # Each chunk's inputs are [cin, Q_lo..Q_hi, B_lo..B_hi]; carry-out is bit index `chunk`.
+        curr_bit = 0
+        curr_cin = "Zero"
+        while curr_bit < self.n:
+            remaining = self.n - curr_bit
+            if remaining >= 4:
+                chunk = 4
+            elif remaining >= 2:
+                chunk = 2
+            else:
+                chunk = 1
+
+            chunk_inputs = [curr_cin]
+            for i in range(chunk):
+                chunk_inputs.append(f"Q_{curr_bit + i}")
+            for i in range(chunk):
+                chunk_inputs.append(f"B_{curr_bit + i}")
+
+            for i in range(chunk):
+                self._add_gate(f"Next_Q_{curr_bit + i}", f"ADDER_{chunk} {i}", chunk_inputs)
+
+            if curr_bit + chunk < self.n:
+                curr_cin = f"C_{curr_bit + chunk}"
+                self._add_gate(curr_cin, f"ADDER_{chunk} {chunk}", chunk_inputs)
+
+            curr_bit += chunk
+
+    def generate_gates(self) -> str:
+        base_out = super().generate_gates()
+        total = len(self.gates)
+        def fin_list(l): return "[" + ", ".join([f"⟨{x}, by decide⟩" for x in l]) + "]"
+        
+        out = [base_out]
+        out.append(f"def q_bus_{self.name} : List (Fin {self.name}.gates.length) := {fin_list(self.q_bus)}")
+        out.append(f"def incr_{self.name} : Fin {self.name}.gates.length := ⟨{self.incr_id}, by decide⟩")
+        out.append(f"def decr_{self.name} : Fin {self.name}.gates.length := ⟨{self.decr_id}, by decide⟩\n")
+        return "\n".join(out)
+
+    def generate_equivalence_proof(self) -> str:
+        total = len(self.gates)
+        out = [f"\n-- AST BOUNDARY LEMMAS & PROOF: {self.name}"]
+        
+        lemma_names = []
+        
+        # 1. Input & State DFF Lemmas
+        for node in self.state_bounds:
+            idx = self.wire_to_id[node]
+            lname = f"ast_{self.name}_{node.lower()}"
+            lemma_names.append(lname)
+            out.append(f"@[simp] lemma {lname} (s : State {self.name}) (i : Fin {total}) (hi : i.val = {idx} := by decide) : evalExpr s (unrollDAG {self.name} {total} i) = s ⟨{idx}, by decide⟩ := by cases i; subst hi; rfl")
+            
+        # 2. Next State Logic Bounds
+        for i in range(self.n):
+            wire = f"Next_Q_{i}"
+            lname = f"ast_{self.name}_next_q_{i}"
+            lemma_names.append(lname)
+            out.append(f"@[simp] lemma {lname} (s : State {self.name}) (i : Fin {total}) (hi : i.val = {self.wire_to_id[wire]} := by decide) : evalExpr s (unrollDAG {self.name} {total} i) = {self._get_bool_expr(wire)} := by cases i; subst hi; rfl")
+            
+        # 3. runCycle Sequence Equivalence
+        cycle_lemmas = []
+        for i in range(self.n):
+            lname = f"runCycle_{self.name}_q_{i}"
+            cycle_lemmas.append(lname)
+            q_id = self.wire_to_id[f"Q_{i}"]
+            nq_id = self.wire_to_id[f"Next_Q_{i}"]
+            # Use the variable-binding pattern to bypass Fin proof-irrelevance issues in simp
+            out.append(f"@[simp] lemma {lname} (s : State {self.name}) (env : List Bool) (idx : Fin {total}) (h : idx.val = {q_id} := by decide) : (runCycle {self.name} s env) idx = evalCombinatorial {self.name} {total} s ⟨{nq_id}, by decide⟩ := by cases idx; subst h; rfl")
+        
+    def generate_equivalence_proof(self) -> str:
+        total = len(self.gates)
+        out = [f"\n-- AST BOUNDARY LEMMAS & PROOF: {self.name}"]
+        
+        # Only the next_q lemmas are needed in the simp proof blocks.
+        # The incr, decr, and q_i boundary lemmas are still emitted as @[simp] for
+        # potential external use, but are excluded from the lemma_names simp list.
+        lemma_names = []
+
+        # 1. Input & State DFF Lemmas (emitted but not added to lemma_names)
+        for node in self.state_bounds:
+            idx = self.wire_to_id[node]
+            lname = f"ast_{self.name}_{node.lower()}"
+            out.append(f"@[simp] lemma {lname} (s : State {self.name}) (i : Fin {total}) (hi : i.val = {idx} := by decide) : evalExpr s (unrollDAG {self.name} {total} i) = s ⟨{idx}, by decide⟩ := by cases i; subst hi; rfl")
+            
+        # 2. Next State Logic Bounds (added to lemma_names -- these are the only ones needed)
+        for i in range(self.n):
+            wire = f"Next_Q_{i}"
+            lname = f"ast_{self.name}_next_q_{i}"
+            lemma_names.append(lname)
+            out.append(f"@[simp] lemma {lname} (s : State {self.name}) (i : Fin {total}) (hi : i.val = {self.wire_to_id[wire]} := by decide) : evalExpr s (unrollDAG {self.name} {total} i) = {self._get_bool_expr(wire)} := by cases i; subst hi; rfl")
+            
+        # 3. runCycle Sequence Equivalence (with idx binding fix)
+        cycle_lemmas = []
+        for i in range(self.n):
+            lname = f"runCycle_{self.name}_q_{i}"
+            cycle_lemmas.append(lname)
+            q_id = self.wire_to_id[f"Q_{i}"]
+            nq_id = self.wire_to_id[f"Next_Q_{i}"]
+            out.append(f"@[simp] lemma {lname} (s : State {self.name}) (env : List Bool) (idx : Fin {total}) (h : idx.val = {q_id} := by decide) : (runCycle {self.name} s env) idx = evalCombinatorial {self.name} {total} s ⟨{nq_id}, by decide⟩ := by cases idx; subst h; rfl")
+
+        # 4. Automated Proof Blocks
+        def build_proof_block(mode: str):
+            block = []
+            
+            if mode in ["up", "down"]:
+                block.append("    intro s env h_incr h_decr")
+            else: # "hold"
+                block.append("    intro s env h_eq")
+                
+            block.append(f"    have equiv (i : Fin {total}) : evalCombinatorial {self.name} {total} s i = evalExpr s (unrollDAG {self.name} {total} i) := by fin_cases i <;> rfl")
+            block.append(f"    simp only [q_bus_{self.name}, bitsToNat]")
+            block.append(f"    simp only [{', '.join(cycle_lemmas)}]")
+            block.append(f"    simp only [equiv]")
+            block.append(f"    simp only [{', '.join(lemma_names)}]")
+            
+            if mode == "up":
+                block.append(f"    change s ⟨{self.incr_id}, by decide⟩ = true at h_incr")
+                block.append(f"    change s ⟨{self.decr_id}, by decide⟩ = false at h_decr")
+                block.append(f"    simp only [h_incr, h_decr]")
+            elif mode == "down":
+                block.append(f"    change s ⟨{self.incr_id}, by decide⟩ = false at h_incr")
+                block.append(f"    change s ⟨{self.decr_id}, by decide⟩ = true at h_decr")
+                block.append(f"    simp only [h_incr, h_decr]")
+            else:
+                # The circuit's hold logic (both incr=decr=0 and incr=decr=1 cases) simplifies
+                # purely in terms of the decr signal after the AST lemmas fire -- the incr signal
+                # drops out. So we generalize decr as val_in (clearing the goal), then use h_eq
+                # to produce a matching hypothesis for the incr side on the bitsToNat RHS.
+                # This mirrors hold_on_low in IsUpCounter: normalise the control signal, then
+                # generalize the Q bits and close by exhaustive Bool case-split.
+                block.append(f"    change s ⟨{self.incr_id}, by decide⟩ = s ⟨{self.decr_id}, by decide⟩ at h_eq")
+                block.append(f"    generalize h_in : s ⟨{self.decr_id}, by decide⟩ = val_in")
+                block.append(f"    rw [h_in] at h_eq")
+                block.append(f"    simp only [h_eq]")
+
+
+            # With q_bus typed as List (Fin {name}.gates.length), simp unfolds the list
+            # literal using the same `by decide` proof terms that _get_bool_expr emits.
+            # Both sides of the goal therefore use identical proof terms, so a plain
+            # `generalize h : s ⟨q_id, by decide⟩ = val_q_i` clears both sides at once --
+            # exactly the same pattern used by the working HierarchicalUpCounter proof.
+            cases_tactics = []
+            for i in range(self.n):
+                q_id = self.wire_to_id[f"Q_{i}"]
+                v_name = f"val_q_{i}"
+                h_name = f"h_val_q_{i}"
+                block.append(f"    generalize {h_name} : s \u27e8{q_id}, by decide\u27e9 = {v_name}")
+                cases_tactics.append(f"cases {v_name}")
+
+            cases_str = ' <;> '.join(cases_tactics)
+            if mode == "hold":
+                 cases_str = "cases val_in <;> " + cases_str
+                 
+            if cases_str:
+                block.append(f"    {cases_str} <;> decide")
+            else:
+                block.append(f"    decide")
+                
+            return "\n".join(block)
+                        
+        out.append(f"\ninstance instIsUpDownCounter_{self.name} : IsUpDownCounter {self.name} {self.n} q_bus_{self.name} incr_{self.name} decr_{self.name} where")
+        out.append("  widths_match := by decide")
+        out.append("  inputs_are_valid := by decide")
+        
+        out.append("  count_up := by")
+        out.append(build_proof_block("up"))
+        
+        out.append("  count_down := by")
+        out.append(build_proof_block("down"))
+        
+        out.append("  hold_on_invalid := by")
+        out.append(build_proof_block("hold"))
+            
+        out.append(f"\ninstance instVerifiedUpDownCounter{self.n}_{self.name} : VerifiedUpDownCounter{self.n} {self.name} q_bus_{self.name} incr_{self.name} decr_{self.name} where")
+        out.append(f"  proof := instIsUpDownCounter_{self.name}\n")
+
+        # The crucial return statement
+        return "\n".join(out)
+                                     
 def print_preamble(namespace):
     out = ["-- Adam Friesz, Winter 2026"]
     out.append("import FormalHdl.Defs")
@@ -603,43 +903,57 @@ def print_preamble(namespace):
 #     f.write("end hdl.examples.adder")
 #     f.write("\n")
 
-# filename = "FormalHdl/Counter.lean"
-# with open(filename, "w") as f:
-#     f.write(print_preamble("counter"))
-
-#     for n in [1, 2, 4]:
-#         counter = HierarchicalCounter(f"counter_{n}", n)
-#         f.write(counter.generate_gates())
-#         f.write(counter.generate_equivalence_proof())
-
-#     f.write("\n")
-#     f.write("end hdl.examples.counter")
-#     f.write("\n")
-
-filename = "FormalHdl/Subtractor.lean"
+filename = "FormalHdl/Counter.lean"
 with open(filename, "w") as f:
-    f.write(print_preamble("subtractor"))
+    f.write(print_preamble("counter"))
 
-    # 1. 1-Bit Gate-Level Subtractor (Verifies the fundamental XOR/AND/NOT logic)
-    sub1 = GateLevelSubtractor1("subtractor_gate_1")
-    f.write(sub1.generate_gates())
-    f.write(sub1.generate_equivalence_proof())
-
-    # 2. 2-Bit Hierarchical Subtractor (Verifies the use of the ADDER_2 macro)
-    sub2 = HierarchicalSubtractor2("subtractor_hier_2")
-    f.write(sub2.generate_gates())
-    f.write(sub2.generate_equivalence_proof())
-
-    # 3. 4-Bit Hierarchical Subtractor (Verifies the use of the ADDER_4 macro)
-    sub4 = HierarchicalSubtractor4("subtractor_hier_4")
-    f.write(sub4.generate_gates())
-    f.write(sub4.generate_equivalence_proof())
-
-    # 4. 4-Bit Gate-Level Comparator (Verifies A < B via Subtractor logic)
-    comp4 = GateLevelComparator4("comparator_gate_4")
-    f.write(comp4.generate_gates())
-    f.write(comp4.generate_equivalence_proof())
+    for n in [1, 2, 4]:
+        counter = HierarchicalUpCounter(f"up_counter_{n}", n)
+        f.write(counter.generate_gates())
+        f.write(counter.generate_equivalence_proof())
+    
+    for n in [4, 5]:
+        counter = HierarchicalUpDownCounter(f"up_down_counter_{n}", n)
+        f.write(counter.generate_gates())
+        f.write(counter.generate_equivalence_proof())
 
     f.write("\n")
-    f.write("end hdl.examples.subtractor")
+    f.write("end hdl.examples.counter")
     f.write("\n")
+
+# filename = "FormalHdl/Subtractor.lean"
+# with open(filename, "w") as f:
+#     f.write(print_preamble("subtractor"))
+
+#     # 1. 1-Bit Gate-Level Subtractor (Verifies the fundamental XOR/AND/NOT logic)
+#     sub1 = GateLevelSubtractor1("subtractor_gate_1")
+#     f.write(sub1.generate_gates())
+#     f.write(sub1.generate_equivalence_proof())
+
+#     # 2. 2-Bit Hierarchical Subtractor (Verifies the use of the ADDER_2 macro)
+#     sub2 = HierarchicalSubtractor2("subtractor_hier_2")
+#     f.write(sub2.generate_gates())
+#     f.write(sub2.generate_equivalence_proof())
+
+#     # 3. 4-Bit Hierarchical Subtractor (Verifies the use of the ADDER_4 macro)
+#     sub4 = HierarchicalSubtractor4("subtractor_hier_4")
+#     f.write(sub4.generate_gates())
+#     f.write(sub4.generate_equivalence_proof())
+
+#     f.write("\n")
+#     f.write("end hdl.examples.subtractor")
+#     f.write("\n")
+
+# filename = "FormalHdl/Comparator.lean"
+# with open(filename, "w") as f:
+#     f.write(print_preamble("comparator"))
+
+#     # 4. 4-Bit Gate-Level Comparator (Verifies A < B via Comparator logic)
+#     comp4 = HierarchicalComparator("comparator_gate_4", 4)
+#     f.write(comp4.generate_gates())
+#     f.write(comp4.generate_equivalence_proof())
+
+#     f.write("\n")
+#     f.write("\n")
+#     f.write("end hdl.examples.comparator")
+#     f.write("\n")

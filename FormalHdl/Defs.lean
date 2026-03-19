@@ -202,7 +202,7 @@ class IsComparator (C : Circuit) (n : Nat)
     let Out_val := stable_s out
     Out_val = (A_val < B_val)
 
-class IsCounter (C : Circuit) (n : Nat) (q_bus : List (Fin C.gates.length)) (inc : Fin C.gates.length) : Prop where
+class IsUpCounter (C : Circuit) (n : Nat) (q_bus : List (Fin C.gates.length)) (inc : Fin C.gates.length) : Prop where
   widths_match : q_bus.length = n
   inputs_are_valid : (C.gates.get inc).kind.ni = 0 ∧ ∀ i ∈ q_bus, (C.gates.get i).kind.is_seq = true
   incr_on_high : ∀ (s : State C) (env : List Bool),
@@ -210,6 +210,26 @@ class IsCounter (C : Circuit) (n : Nat) (q_bus : List (Fin C.gates.length)) (inc
     bitsToNat (runCycle C s env) q_bus = (bitsToNat s q_bus + 1) % (2 ^ n)
   hold_on_low : ∀ (s : State C) (env : List Bool),
     s inc = false →
+    bitsToNat (runCycle C s env) q_bus = bitsToNat s q_bus
+
+class IsUpDownCounter (C : Circuit) (n : Nat)
+  (q_bus : List (Fin C.gates.length))
+  (incr decr : Fin C.gates.length) : Prop where
+  widths_match : q_bus.length = n
+  inputs_are_valid : (C.gates.get incr).kind.ni = 0 ∧
+                     (C.gates.get decr).kind.ni = 0 ∧
+                     ∀ i ∈ q_bus, (C.gates.get i).kind.is_seq = true
+  -- 1. Increment when ONLY Incr is high
+  count_up : ∀ (s : State C) (env : List Bool),
+    s incr = true → s decr = false →
+    bitsToNat (runCycle C s env) q_bus = (bitsToNat s q_bus + 1) % (2 ^ n)
+  -- 2. Decrement when ONLY Decr is high (Uses Two's Complement math to avoid Nat flooring)
+  count_down : ∀ (s : State C) (env : List Bool),
+    s incr = false → s decr = true →
+    bitsToNat (runCycle C s env) q_bus = (bitsToNat s q_bus + (2 ^ n - 1)) % (2 ^ n)
+  -- 3. Hold when neither is asserted (00) OR both are asserted simultaneously (11)
+  hold_on_invalid : ∀ (s : State C) (env : List Bool),
+    s incr = s decr →
     bitsToNat (runCycle C s env) q_bus = bitsToNat s q_bus
 
 -- Specific Parameterized Verified Implementations
@@ -234,14 +254,20 @@ class VerifiedSubtractor4 (C : Circuit) (a b diff : List (Fin C.gates.length)) (
 class VerifiedComp4 (C : Circuit) (a b : List (Fin C.gates.length)) (out : Fin C.gates.length) : Prop where
   proof : IsComparator C 4 a b out
 
-class VerifiedCounter1 (C : Circuit) (q_bus : List (Fin C.gates.length)) (inc : Fin C.gates.length) : Prop where
-  proof : IsCounter C 1 q_bus inc
+class VerifiedUpCounter1 (C : Circuit) (q_bus : List (Fin C.gates.length)) (inc : Fin C.gates.length) : Prop where
+  proof : IsUpCounter C 1 q_bus inc
 
-class VerifiedCounter2 (C : Circuit) (q_bus : List (Fin C.gates.length)) (inc : Fin C.gates.length) : Prop where
-  proof : IsCounter C 2 q_bus inc
+class VerifiedUpCounter2 (C : Circuit) (q_bus : List (Fin C.gates.length)) (inc : Fin C.gates.length) : Prop where
+  proof : IsUpCounter C 2 q_bus inc
 
-class VerifiedCounter4 (C : Circuit) (q_bus : List (Fin C.gates.length)) (inc : Fin C.gates.length) : Prop where
-  proof : IsCounter C 4 q_bus inc
+class VerifiedUpCounter4 (C : Circuit) (q_bus : List (Fin C.gates.length)) (inc : Fin C.gates.length) : Prop where
+  proof : IsUpCounter C 4 q_bus inc
+
+class VerifiedUpDownCounter4 (C : Circuit) (q_bus : List (Fin C.gates.length)) (incr decr : Fin C.gates.length) : Prop where
+  proof : IsUpDownCounter C 4 q_bus incr decr
+
+class VerifiedUpDownCounter5 (C : Circuit) (q_bus : List (Fin C.gates.length)) (incr decr : Fin C.gates.length) : Prop where
+  proof : IsUpDownCounter C 5 q_bus incr decr
 
 -- ==========================================
 -- 5. AST Evaluator
