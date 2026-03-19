@@ -38,12 +38,25 @@ class VerifiedComponent:
         elif op.startswith("ADDER_4"):
             bit = op.split(" ")[1]
             self.gates.append(f"Gate.mk (.adder_4 ⟨{bit}, by decide⟩) false")
-        elif op == "COMP_LT_4":
-            self.gates.append("Gate.mk .comp_lt_4 false")
-        elif op.startswith("INC_4"):
+        elif op.startswith("UP_DOWN_COUNT_1"):
             bit = op.split(" ")[1]
-            self.gates.append(f"Gate.mk (.inc_4 ⟨{bit}, by decide⟩) false")
-            
+            self.gates.append(f"Gate.mk (.up_down_count_1 ⟨{bit}, by decide⟩) false")
+        elif op.startswith("UP_DOWN_COUNT_2"):
+            bit = op.split(" ")[1]
+            self.gates.append(f"Gate.mk (.up_down_count_2 ⟨{bit}, by decide⟩) false")
+        elif op.startswith("UP_DOWN_COUNT_4"):
+            bit = op.split(" ")[1]
+            self.gates.append(f"Gate.mk (.up_down_count_4 ⟨{bit}, by decide⟩) false")
+        elif op == "COMP_1":
+            self.gates.append("Gate.mk .comp_1 false")   
+        elif op == "COMP_2":
+            self.gates.append("Gate.mk .comp_2 false")   
+        elif op == "COMP_4":
+            self.gates.append("Gate.mk .comp_4 false")   
+        elif op.startswith("DECODER_3"):
+            bit = op.split(" ")[1]
+            self.gates.append(f"Gate.mk (.decoder_3 ⟨{bit}, by decide⟩) false")
+        
         # Physical Logic Gates
         else:
             self.gates.append(f"Gate.mk .{op.lower()}_ false")
@@ -55,7 +68,7 @@ class VerifiedComponent:
         """Recursively unrolls logic and hierarchical macros into Lean math."""
         op, args = self.gate_defs[wire]
         if op == "INPUT" or op == "DFF":
-            return f"s ⟨{self.wire_to_id[wire]}, by decide⟩"
+            return f"(s ⟨{self.wire_to_id[wire]}, by decide⟩)"
         
         exprs = [self._get_bool_expr(a) for a in args]
         if op == "AND": return f"({exprs[0]} && {exprs[1]})"
@@ -73,7 +86,37 @@ class VerifiedComponent:
         if op.startswith("ADDER_4"):
             bit = op.split(" ")[1]
             return f"(compute_adder_4 ({exprs[0]}) ({exprs[1]}) ({exprs[2]}) ({exprs[3]}) ({exprs[4]}) ({exprs[5]}) ({exprs[6]}) ({exprs[7]}) ({exprs[8]})).testBit {bit}"
-        
+        if op.startswith("DECODER_3"):
+            bit = op.split(" ")[1]
+            val = f"({exprs[0]}.toNat + 2*{exprs[1]}.toNat + 4*{exprs[2]}.toNat)"
+            return f"({val} == {bit})"
+        if op == "COMP_1":
+            a_val = f"({exprs[0]}.toNat)"
+            b_val = f"({exprs[4]}.toNat)"
+            return f"({a_val} < {b_val})"
+        if op == "COMP_2":
+            a_val = f"({exprs[0]}.toNat + 2*{exprs[1]}.toNat)"
+            b_val = f"({exprs[4]}.toNat + 2*{exprs[5]}.toNat)"
+            return f"({a_val} < {b_val})"
+        if op == "COMP_4":
+            a_val = f"({exprs[0]}.toNat + 2*{exprs[1]}.toNat + 4*{exprs[2]}.toNat + 8*{exprs[3]}.toNat)"
+            b_val = f"({exprs[4]}.toNat + 2*{exprs[5]}.toNat + 4*{exprs[6]}.toNat + 8*{exprs[7]}.toNat)"
+            return f"({a_val} < {b_val})"
+        if op.startswith("UP_DOWN_COUNT_1"):
+            bit = op.split(" ")[1]
+            q_val = f"({exprs[2]}.toNat)"
+            next_val = f"(if {exprs[0]} && !({exprs[1]}) then ({q_val} + 1) % 2 else if {exprs[1]} && !({exprs[0]}) then ({q_val} + 1) % 2 else {q_val})"
+            return f"({next_val}).testBit {bit}"
+        if op.startswith("UP_DOWN_COUNT_2"):
+            bit = op.split(" ")[1]
+            q_val = f"({exprs[2]}.toNat + 2*{exprs[3]}.toNat)"
+            next_val = f"(if {exprs[0]} && !({exprs[1]}) then ({q_val} + 1) % 4 else if {exprs[1]} && !({exprs[0]}) then ({q_val} + 3) % 4 else {q_val})"
+            return f"({next_val}).testBit {bit}"
+        if op.startswith("UP_DOWN_COUNT_4"):
+            bit = op.split(" ")[1]
+            q_val = f"({exprs[2]}.toNat + 2*{exprs[3]}.toNat + 4*{exprs[4]}.toNat + 8*{exprs[5]}.toNat)"
+            next_val = f"(if {exprs[0]} && !({exprs[1]}) then ({q_val} + 1) % 16 else if {exprs[1]} && !({exprs[0]}) then ({q_val} + 15) % 16 else {q_val})"
+            return f"({next_val}).testBit {bit}"
         return "false"
     
     def generate_gates(self) -> str:
@@ -865,7 +908,110 @@ class HierarchicalUpDownCounter(VerifiedComponent):
 
         # The crucial return statement
         return "\n".join(out)
-                                     
+
+class Decoder(VerifiedComponent):
+    """The Mathematical Contract Generator for a Gate-Level N-to-2^N Decoder."""
+    def __init__(self, name: str, n_bits: int):
+        self.sel_bus = []
+        self.out_bus = []
+        super().__init__(name, n_bits)
+
+    def _add_gate(self, out_wire: str, op: str, in_wires: list):
+        super()._add_gate(out_wire, op, in_wires)
+        created_id = self.current_id - 1
+        
+        if out_wire.startswith("Sel_") and op == "INPUT":
+            self.sel_bus.append(created_id)
+        elif out_wire.startswith("Out_"):
+            self.out_bus.append(created_id)
+
+    def _build_netlist(self):
+        # 1. Inputs (Sel_0 to Sel_n-1)
+        for i in range(self.n):
+            self._add_gate(f"Sel_{i}", "INPUT", [])
+            self._add_gate(f"Not_Sel_{i}", "NOT", [f"Sel_{i}"])
+
+        # 2. Gate-level Decoding Logic for all 2^N outputs
+        for val in range(1 << self.n):
+            and_inputs = []
+            for i in range(self.n):
+                # Check if the i-th bit of the current val is 1
+                if (val & (1 << i)) != 0:
+                    and_inputs.append(f"Sel_{i}")
+                else:
+                    and_inputs.append(f"Not_Sel_{i}")
+
+            # 3. Cascade AND gates to combine all bits for this specific output
+            if self.n == 1:
+                self._add_gate(f"Out_{val}", "AND", [and_inputs[0], and_inputs[0]]) # Pass-through
+            else:
+                curr_wire = and_inputs[0]
+                for i in range(1, self.n - 1):
+                    wire_name = f"And_{val}_{i}"
+                    self._add_gate(wire_name, "AND", [curr_wire, and_inputs[i]])
+                    curr_wire = wire_name
+                
+                # Final AND gate connects to the respective Out pin
+                self._add_gate(f"Out_{val}", "AND", [curr_wire, and_inputs[-1]])
+
+    def generate_gates(self) -> str:
+        base_out = super().generate_gates()
+        total = len(self.gates)
+        def fin_list(l): return "[" + ", ".join([f"⟨{x}, by decide⟩" for x in l]) + "]"
+        
+        out = [base_out]
+        out.append(f"def sel_bus_{self.name} : List (Fin {total}) := {fin_list(self.sel_bus)}")
+        out.append(f"def out_bus_{self.name} : List (Fin {total}) := {fin_list(self.out_bus)}\n")
+        return "\n".join(out)
+
+    def generate_equivalence_proof(self) -> str:
+        # We no longer use 'total' in the emitted code to ensure strict type matching!
+        out = [f"\n-- AST BOUNDARY LEMMAS & PROOF: {self.name}"]
+        
+        lemma_names = []
+        # 1. Input Lemmas
+        for node in self.state_bounds:
+            idx = self.wire_to_id[node]
+            lname = f"ast_{self.name}_{node.lower()}"
+            lemma_names.append(lname)
+            # Use {self.name}.gates.length instead of the integer
+            out.append(f"@[simp] lemma {lname} (s : State {self.name}) (i : Fin {self.name}.gates.length) (hi : i.val = {idx} := by decide) : evalExpr s (unrollDAG {self.name} {self.name}.gates.length i) = s ⟨{idx}, by decide⟩ := by cases i; subst hi; rfl")
+
+        # 2. Output Bit-Blasting Lemmas (for all 2^N outputs)
+        for val in range(1 << self.n):
+            wire = f"Out_{val}"
+            lname = f"ast_{self.name}_out_{val}"
+            lemma_names.append(lname)
+            # Use {self.name}.gates.length
+            out.append(f"@[simp] lemma {lname} (s : State {self.name}) (i : Fin {self.name}.gates.length) (hi : i.val = {self.wire_to_id[wire]} := by decide) : evalExpr s (unrollDAG {self.name} {self.name}.gates.length i) = {self._get_bool_expr(wire)} := by cases i; subst hi; rfl")
+
+        # 3. Parameterized Contract Instantiation
+        out.append(f"\ninstance instIsDecoder_{self.name} : IsDecoder {self.name} {self.n} sel_bus_{self.name} out_bus_{self.name} where")
+        out.append("  widths_match := by decide")
+        out.append("  inputs_are_valid := by intro i h; fin_cases h <;> rfl")
+        out.append("  decode_correct := by")
+        out.append("    intro s")
+        # Define the equiv rule using the exact unevaluated length property
+        out.append(f"    have equiv (i : Fin {self.name}.gates.length) : evalCombinatorial {self.name} {self.name}.gates.length s i = evalExpr s (unrollDAG {self.name} {self.name}.gates.length i) := by fin_cases i <;> rfl")
+        out.append(f"    simp only [sel_bus_{self.name}, out_bus_{self.name}, bitsToNat]")
+        out.append(f"    simp only [equiv]")
+        out.append(f"    simp only [{', '.join(lemma_names)}]")
+        
+        # Generalize the state variables to detach them from the Fin indices
+        for name in self.state_bounds:
+            v_name = name.lower()
+            out.append(f"    generalize h_{v_name} : s ⟨{self.wire_to_id[name]}, by decide⟩ = {v_name}")
+            
+        # Case split on the generalized boolean inputs and evaluate
+        out.append(f"    {' <;> '.join(['cases ' + name.lower() for name in self.state_bounds])} <;> decide")
+        
+        # 4. Final Proof-Carrying Binding
+        if self.n == 3:
+            out.append(f"\ninstance instVerifiedDecoder3_{self.name} : VerifiedDecoder3 {self.name} sel_bus_{self.name} out_bus_{self.name} where")
+            out.append(f"  proof := instIsDecoder_{self.name}\n")
+            
+        return "\n".join(out)
+                         
 def print_preamble(namespace):
     out = ["-- Adam Friesz, Winter 2026"]
     out.append("import FormalHdl.Defs")
@@ -903,23 +1049,23 @@ def print_preamble(namespace):
 #     f.write("end hdl.examples.adder")
 #     f.write("\n")
 
-filename = "FormalHdl/Counter.lean"
-with open(filename, "w") as f:
-    f.write(print_preamble("counter"))
+# filename = "FormalHdl/Counter.lean"
+# with open(filename, "w") as f:
+#     f.write(print_preamble("counter"))
 
-    for n in [1, 2, 4]:
-        counter = HierarchicalUpCounter(f"up_counter_{n}", n)
-        f.write(counter.generate_gates())
-        f.write(counter.generate_equivalence_proof())
+#     for n in [1, 2, 4]:
+#         counter = HierarchicalUpCounter(f"up_counter_{n}", n)
+#         f.write(counter.generate_gates())
+#         f.write(counter.generate_equivalence_proof())
     
-    for n in [4, 5]:
-        counter = HierarchicalUpDownCounter(f"up_down_counter_{n}", n)
-        f.write(counter.generate_gates())
-        f.write(counter.generate_equivalence_proof())
+#     for n in [4, 5]:
+#         counter = HierarchicalUpDownCounter(f"up_down_counter_{n}", n)
+#         f.write(counter.generate_gates())
+#         f.write(counter.generate_equivalence_proof())
 
-    f.write("\n")
-    f.write("end hdl.examples.counter")
-    f.write("\n")
+#     f.write("\n")
+#     f.write("end hdl.examples.counter")
+#     f.write("\n")
 
 # filename = "FormalHdl/Subtractor.lean"
 # with open(filename, "w") as f:
@@ -957,3 +1103,14 @@ with open(filename, "w") as f:
 #     f.write("\n")
 #     f.write("end hdl.examples.comparator")
 #     f.write("\n")
+
+filename = "FormalHdl/Decoder.lean"
+with open(filename, "w") as f:
+    f.write(print_preamble("decoder"))
+    dec = Decoder("decoder_3", 3)
+    f.write(dec.generate_gates())
+    f.write(dec.generate_equivalence_proof())
+
+    f.write("\n")
+    f.write("end hdl.examples.decoder")
+    f.write("\n")

@@ -41,20 +41,28 @@ def compute_adder_4 (cin a0 a1 a2 a3 b0 b1 b2 b3 : Bool) : Nat :=
 inductive GateKind
   | igate | dff
   | not_ | and_ | or_ | xor_
-  -- Standard Cell Library (Pure Enums)
-  | comp_lt_4
+  -- Adders
   | adder_1 (bit : Fin 2)
   | adder_2 (bit : Fin 3)
   | adder_4 (bit : Fin 5)
+  -- Comparators (A < B)
+  | comp_1 | comp_2 | comp_4
+  -- Up/Down Counters (outputs the Next State bit)
+  | up_down_count_1 (bit : Fin 1)
+  | up_down_count_2 (bit : Fin 2)
+  | up_down_count_4 (bit : Fin 4)
+  -- Decoder
+  | decoder_3 (bit : Fin 8)
 
 def GateKind.ni : GateKind → Nat
   | .igate => 0
-  | .dff   => 1
-  | .not_  => 1
-  | .and_ | .or_ | .xor_ => 2
-  | .comp_lt_4 => 8
-  | .adder_1 _ => 3
+  | .dff | .not_ => 1
+  | .and_ | .or_ | .xor_ | .comp_1 => 2
+  | .adder_1 _ | .up_down_count_1 _ | .decoder_3 _ => 3
+  | .comp_2 | .up_down_count_2 _ => 4
   | .adder_2 _ => 5
+  | .up_down_count_4 _ => 6
+  | .comp_4 => 8
   | .adder_4 _ => 9
 
 def GateKind.is_seq : GateKind → Bool
@@ -110,27 +118,51 @@ def evalCombinatorial (C : Circuit) (fuel : Nat) (curr_state : Fin C.gates.lengt
                  evalCombinatorial C f curr_state (C.wiring i ⟨1, by rw [h_kind]; decide⟩)
 
       -- Fast Standard Cell Evaluation
-      | .comp_lt_4 =>
+-- Comparators
+      | .comp_1 =>
+          let w (idx : Fin 2) := evalCombinatorial C f curr_state (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩)
+          (w 0).toNat < (w 1).toNat
+      | .comp_2 =>
+          let w (idx : Fin 4) := evalCombinatorial C f curr_state (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩)
+          let a_val := (w 0).toNat + 2*(w 1).toNat
+          let b_val := (w 2).toNat + 2*(w 3).toNat
+          a_val < b_val
+      | .comp_4 =>
           let w (idx : Fin 8) := evalCombinatorial C f curr_state (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩)
           let a_val := (w 0).toNat + 2*(w 1).toNat + 4*(w 2).toNat + 8*(w 3).toNat
           let b_val := (w 4).toNat + 2*(w 5).toNat + 4*(w 6).toNat + 8*(w 7).toNat
           a_val < b_val
-
+      -- Up/Down Counters
+      | .up_down_count_1 bit =>
+          let w (idx : Fin 3) := evalCombinatorial C f curr_state (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩)
+          let next_val := if w 0 && !(w 1) then ((w 2).toNat + 1) % 2 else if w 1 && !(w 0) then ((w 2).toNat + 1) % 2 else (w 2).toNat
+          next_val.testBit bit.val
+      | .up_down_count_2 bit =>
+          let w (idx : Fin 4) := evalCombinatorial C f curr_state (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩)
+          let q_val := (w 2).toNat + 2*(w 3).toNat
+          let next_val := if w 0 && !(w 1) then (q_val + 1) % 4 else if w 1 && !(w 0) then (q_val + 3) % 4 else q_val
+          next_val.testBit bit.val
+      | .up_down_count_4 bit =>
+          let w (idx : Fin 6) := evalCombinatorial C f curr_state (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩)
+          let q_val := (w 2).toNat + 2*(w 3).toNat + 4*(w 4).toNat + 8*(w 5).toNat
+          let next_val := if w 0 && !(w 1) then (q_val + 1) % 16 else if w 1 && !(w 0) then (q_val + 15) % 16 else q_val
+          next_val.testBit bit.val
       | .adder_1 bit =>
           let w (idx : Fin 3) := evalCombinatorial C f curr_state (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩)
           let res := compute_adder_1 (w 0) (w 1) (w 2)
           res.testBit bit.val
-
       | .adder_2 bit =>
           let w (idx : Fin 5) := evalCombinatorial C f curr_state (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩)
           let res := compute_adder_2 (w 0) (w 1) (w 2) (w 3) (w 4)
           res.testBit bit.val
-
       | .adder_4 bit =>
           let w (idx : Fin 9) := evalCombinatorial C f curr_state (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩)
           let res := compute_adder_4 (w 0) (w 1) (w 2) (w 3) (w 4) (w 5) (w 6) (w 7) (w 8)
           res.testBit bit.val
-
+      | .decoder_3 bit =>
+          let w (idx : Fin 3) := evalCombinatorial C f curr_state (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩)
+          let val := (w 0).toNat + 2*(w 1).toNat + 4*(w 2).toNat
+          val == bit.val
       | _ => false
 
 def step (C : Circuit) (stable_state : State C) (env_inputs : List Bool) : State C :=
@@ -232,6 +264,17 @@ class IsUpDownCounter (C : Circuit) (n : Nat)
     s incr = s decr →
     bitsToNat (runCycle C s env) q_bus = bitsToNat s q_bus
 
+class IsDecoder (C : Circuit) (n : Nat)
+  (sel_bus : List (Fin C.gates.length))
+  (out_bus : List (Fin C.gates.length)) : Prop where
+  widths_match : sel_bus.length = n ∧ out_bus.length = 2 ^ n
+  inputs_are_valid : ∀ i ∈ sel_bus, (C.gates.get i).kind.ni = 0
+  decode_correct : ∀ (s : Fin C.gates.length → Bool),
+    let stable_s := evalCombinatorial C C.gates.length s
+    let sel_val := bitsToNat stable_s sel_bus
+    let out_val := bitsToNat stable_s out_bus
+    out_val = 2 ^ sel_val
+
 -- Specific Parameterized Verified Implementations
 class VerifiedAdder1 (C : Circuit) (a b sum : List (Fin C.gates.length)) (cin cout : Fin C.gates.length) : Prop where
   proof : IsAdder C 1 a b sum cin cout
@@ -269,6 +312,9 @@ class VerifiedUpDownCounter4 (C : Circuit) (q_bus : List (Fin C.gates.length)) (
 class VerifiedUpDownCounter5 (C : Circuit) (q_bus : List (Fin C.gates.length)) (incr decr : Fin C.gates.length) : Prop where
   proof : IsUpDownCounter C 5 q_bus incr decr
 
+class VerifiedDecoder3 (C : Circuit) (sel_bus out_bus : List (Fin C.gates.length)) : Prop where
+  proof : IsDecoder C 3 sel_bus out_bus
+
 -- ==========================================
 -- 5. AST Evaluator
 -- ==========================================
@@ -280,10 +326,20 @@ inductive CombExpr (Idx : Type)
   | and (a b : CombExpr Idx)
   | or  (a b : CombExpr Idx)
   | xor (a b : CombExpr Idx)
-  | comp_lt_4 (args : List (CombExpr Idx))
-  | adder_1   (bit : Fin 2) (args : List (CombExpr Idx))
-  | adder_2   (bit : Fin 3) (args : List (CombExpr Idx))
-  | adder_4   (bit : Fin 5) (args : List (CombExpr Idx))
+  -- Comparators
+  | comp_1 (args : List (CombExpr Idx))
+  | comp_2 (args : List (CombExpr Idx))
+  | comp_4 (args : List (CombExpr Idx))
+  -- Adders
+  | adder_1 (bit : Fin 2) (args : List (CombExpr Idx))
+  | adder_2 (bit : Fin 3) (args : List (CombExpr Idx))
+  | adder_4 (bit : Fin 5) (args : List (CombExpr Idx))
+  -- Up/Down Counters
+  | up_down_count_1 (bit : Fin 1) (args : List (CombExpr Idx))
+  | up_down_count_2 (bit : Fin 2) (args : List (CombExpr Idx))
+  | up_down_count_4 (bit : Fin 4) (args : List (CombExpr Idx))
+  -- Decoder
+  | decoder_3 (bit : Fin 8) (args : List (CombExpr Idx))
 
 structure AstCircuit (N : Nat) where
   is_input : (i : Fin N) → Bool
@@ -298,12 +354,53 @@ def evalExpr {Idx : Type} (state : Idx → Bool) : CombExpr Idx → Bool
   | .and a b      => (evalExpr state a) && (evalExpr state b)
   | .or a b       => (evalExpr state a) || (evalExpr state b)
   | .xor a b      => (evalExpr state a) ^^ (evalExpr state b)
-  | .comp_lt_4 args =>
+  -- Comparators
+  | .comp_1 args =>
+      match args with
+      | [a0, b0] =>
+          (evalExpr state a0).toNat < (evalExpr state b0).toNat
+      | _ => false
+  | .comp_2 args =>
+      match args with
+      | [a0, a1, b0, b1] =>
+          let a_val := (evalExpr state a0).toNat + 2*(evalExpr state a1).toNat
+          let b_val := (evalExpr state b0).toNat + 2*(evalExpr state b1).toNat
+          a_val < b_val
+      | _ => false
+  | .comp_4 args =>
       match args with
       | [a0, a1, a2, a3, b0, b1, b2, b3] =>
           let a_val := (evalExpr state a0).toNat + 2*(evalExpr state a1).toNat + 4*(evalExpr state a2).toNat + 8*(evalExpr state a3).toNat
           let b_val := (evalExpr state b0).toNat + 2*(evalExpr state b1).toNat + 4*(evalExpr state b2).toNat + 8*(evalExpr state b3).toNat
           a_val < b_val
+      | _ => false
+  -- Up/Down Counters
+  | .up_down_count_1 bit args =>
+      match args with
+      | [incr, decr, q0] =>
+          let w0 := evalExpr state incr
+          let w1 := evalExpr state decr
+          let w2 := evalExpr state q0
+          let next_val := if w0 && !w1 then (w2.toNat + 1) % 2 else if w1 && !w0 then (w2.toNat + 1) % 2 else w2.toNat
+          next_val.testBit bit.val
+      | _ => false
+  | .up_down_count_2 bit args =>
+      match args with
+      | [incr, decr, q0, q1] =>
+          let w0 := evalExpr state incr
+          let w1 := evalExpr state decr
+          let q_val := (evalExpr state q0).toNat + 2*(evalExpr state q1).toNat
+          let next_val := if w0 && !w1 then (q_val + 1) % 4 else if w1 && !w0 then (q_val + 3) % 4 else q_val
+          next_val.testBit bit.val
+      | _ => false
+  | .up_down_count_4 bit args =>
+      match args with
+      | [incr, decr, q0, q1, q2, q3] =>
+          let w0 := evalExpr state incr
+          let w1 := evalExpr state decr
+          let q_val := (evalExpr state q0).toNat + 2*(evalExpr state q1).toNat + 4*(evalExpr state q2).toNat + 8*(evalExpr state q3).toNat
+          let next_val := if w0 && !w1 then (q_val + 1) % 16 else if w1 && !w0 then (q_val + 15) % 16 else q_val
+          next_val.testBit bit.val
       | _ => false
   | .adder_1 bit args =>
       match args with
@@ -329,6 +426,12 @@ def evalExpr {Idx : Type} (state : Idx → Bool) : CombExpr Idx → Bool
             (evalExpr state b0) (evalExpr state b1) (evalExpr state b2) (evalExpr state b3)
           res.testBit bit.val
       | _ => false
+  | .decoder_3 bit args =>
+      match args with
+      | [s0, s1, s2] =>
+          let val := (evalExpr state s0).toNat + 2*(evalExpr state s1).toNat + 4*(evalExpr state s2).toNat
+          val == bit.val
+      | _ => false
 
 def stepAst {N : Nat} (C : AstCircuit N) (curr_state : Fin N → Bool) (env_inputs : List Bool) : Fin N → Bool :=
   fun i =>
@@ -348,9 +451,25 @@ def unrollDAG (C : Circuit) (fuel : Nat) (i : Fin C.gates.length) : CombExpr (Fi
       | .and_ => .and (unrollDAG C f (C.wiring i ⟨0, by rw [h_kind]; decide⟩)) (unrollDAG C f (C.wiring i ⟨1, by rw [h_kind]; decide⟩))
       | .or_  => .or  (unrollDAG C f (C.wiring i ⟨0, by rw [h_kind]; decide⟩)) (unrollDAG C f (C.wiring i ⟨1, by rw [h_kind]; decide⟩))
       | .xor_ => .xor (unrollDAG C f (C.wiring i ⟨0, by rw [h_kind]; decide⟩)) (unrollDAG C f (C.wiring i ⟨1, by rw [h_kind]; decide⟩))
-      | .comp_lt_4 =>
+      | .comp_1 =>
+          let args := List.ofFn (fun (idx : Fin 2) => unrollDAG C f (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩))
+          .comp_1 args
+      | .comp_2 =>
+          let args := List.ofFn (fun (idx : Fin 4) => unrollDAG C f (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩))
+          .comp_2 args
+      | .comp_4 =>
           let args := List.ofFn (fun (idx : Fin 8) => unrollDAG C f (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩))
-          .comp_lt_4 args
+          .comp_4 args
+
+      | .up_down_count_1 bit =>
+          let args := List.ofFn (fun (idx : Fin 3) => unrollDAG C f (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩))
+          .up_down_count_1 bit args
+      | .up_down_count_2 bit =>
+          let args := List.ofFn (fun (idx : Fin 4) => unrollDAG C f (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩))
+          .up_down_count_2 bit args
+      | .up_down_count_4 bit =>
+          let args := List.ofFn (fun (idx : Fin 6) => unrollDAG C f (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩))
+          .up_down_count_4 bit args
       | .adder_1 bit =>
           let args := List.ofFn (fun (idx : Fin 3) => unrollDAG C f (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩))
           .adder_1 bit args
@@ -360,6 +479,9 @@ def unrollDAG (C : Circuit) (fuel : Nat) (i : Fin C.gates.length) : CombExpr (Fi
       | .adder_4 bit =>
           let args := List.ofFn (fun (idx : Fin 9) => unrollDAG C f (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩))
           .adder_4 bit args
+      | .decoder_3 bit =>
+          let args := List.ofFn (fun (idx : Fin 3) => unrollDAG C f (C.wiring i ⟨idx.val, by rw [h_kind]; exact idx.isLt⟩))
+          .decoder_3 bit args
       | _ => .false_const
 
 def to_ast (C : Circuit) : AstCircuit C.gates.length := {
